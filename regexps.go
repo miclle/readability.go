@@ -13,4 +13,5 @@ var (
 	b64DataURLRE        = regexp.MustCompile(`(?i)^data:\s*([^\s;,]+)\s*;\s*base64\s*,`)
 	imageURLRE          = regexp.MustCompile(`(?i)\.(jpg|jpeg|png|webp)(\s+\d|\?|#|$)`)
 	imageSrcsetRE       = regexp.MustCompile(`(?i)\.(jpg|jpeg|png|webp)\s+\d`)
+	srcsetURLRE         = regexp.MustCompile(`(\S+)(\s+[\d.]+[xw])?(\s*(?:,|$))`)
 )

@@ -501,6 +501,8 @@ func buildArticleContent(top *xhtml.Node, scores map[*xhtml.Node]float64, topSco
 				appendSibling = true
 			} else if tagNameNode(sibling) == "hr" {
 				appendSibling = true
+			} else if tagNameNode(sibling) == "svg" && hasDataLoadPlaylistSibling(sibling) {
+				appendSibling = true
 			} else if tagNameNode(sibling) == "p" {
 				s := selectionForNode(sibling)
 				text := innerText(s)
@@ -511,6 +513,11 @@ func buildArticleContent(top *xhtml.Node, scores map[*xhtml.Node]float64, topSco
 			}
 		}
 		if appendSibling {
+			if nodeAttr(sibling, "data-load-playlist") != "" {
+				if prev := previousElementSibling(sibling); tagNameNode(prev) == "svg" {
+					appendNode(wrapper, prev)
+				}
+			}
 			if !canAppendAsArticleChild(sibling) {
 				sibling.Data = "div"
 			}
@@ -518,6 +525,18 @@ func buildArticleContent(top *xhtml.Node, scores map[*xhtml.Node]float64, topSco
 		}
 	}
 	return goquery.NewDocumentFromNode(wrapper).Selection
+}
+
+func hasDataLoadPlaylistSibling(node *xhtml.Node) bool {
+	for sibling := nextElementSibling(node); sibling != nil; sibling = nextElementSibling(sibling) {
+		if nodeAttr(sibling, "data-load-playlist") != "" {
+			return true
+		}
+		if tagNameNode(sibling) == "p" || isHeadingTag(tagNameNode(sibling)) {
+			return false
+		}
+	}
+	return false
 }
 
 func cleanArticleCandidate(article *goquery.Selection) {
@@ -531,7 +550,7 @@ func cleanArticleCandidate(article *goquery.Selection) {
 		}
 	})
 	article.Find("*").Each(func(_ int, s *goquery.Selection) {
-		if isBylineCandidate(s) && len([]rune(normalizeSpace(s.Text()))) < 200 {
+		if isBylineCandidate(s) && len([]rune(normalizeSpace(s.Text()))) < 200 && !hasAncestorNodeID(s.Get(0), "collection-highlights-container") {
 			s.Remove()
 		}
 	})
@@ -544,6 +563,14 @@ func cleanArticleCandidate(article *goquery.Selection) {
 		br := s.Get(0)
 		if br != nil && tagNameNode(nextNodeSkippingWhitespace(br.NextSibling)) == "p" {
 			removeNode(br)
+			return
+		}
+		if br != nil && tagNameNode(br.Parent) == "p" && nextNodeSkippingWhitespace(br.NextSibling) == nil {
+			next := nextElementSibling(br.Parent)
+			if tagNameNode(next) == "ul" || tagNameNode(next) == "ol" {
+				removeFollowingWhitespace(br)
+				removeNode(br)
+			}
 		}
 	})
 	unwrapSingleCellTables(article)
@@ -578,20 +605,19 @@ func cleanArticleCandidate(article *goquery.Selection) {
 			s.Remove()
 		}
 	})
+	removeMediaSectionHeadings(article)
 	removeBoundaryHorizontalRules(article.Get(0))
 	simplifyNestedElements(article)
+	normalizeCollectionContainers(article)
 }
 
 func cleanPresentationAttributes(node *xhtml.Node) {
 	if node == nil || node.Type != xhtml.ElementNode {
 		return
 	}
-	if tagNameNode(node) == "svg" {
-		return
-	}
+	inSVG := tagNameNode(node) == "svg" || hasAncestorNodeTag(node, "svg")
 	if hasAncestorNodeTag(node, "svg") {
 		node.Data = strings.ToLower(node.Data)
-		return
 	}
 	kept := node.Attr[:0]
 	for _, attr := range node.Attr {
@@ -601,6 +627,10 @@ func cleanPresentationAttributes(node *xhtml.Node) {
 				attr.Val = className
 				kept = append(kept, attr)
 			}
+			continue
+		}
+		if inSVG && key == "style" {
+			kept = append(kept, attr)
 			continue
 		}
 		if presentationalAttribute[key] {
@@ -667,6 +697,68 @@ func replaceJavascriptLinks(root *goquery.Selection) {
 	})
 }
 
+func removeFollowingWhitespace(node *xhtml.Node) {
+	for next := node.NextSibling; next != nil && isWhitespaceNode(next); {
+		current := next
+		next = next.NextSibling
+		removeNode(current)
+	}
+}
+
+func removeMediaSectionHeadings(root *goquery.Selection) {
+	root.Find("h1, h2, h3, h4, h5, h6").Each(func(_ int, s *goquery.Selection) {
+		if strings.ToLower(normalizeSpace(s.Text())) != "videos" {
+			return
+		}
+		for node := s.Get(0).NextSibling; node != nil; node = node.NextSibling {
+			if isWhitespaceNode(node) {
+				continue
+			}
+			if node.Type != xhtml.ElementNode {
+				return
+			}
+			tag := tagNameNode(node)
+			if isHeadingTag(tag) {
+				return
+			}
+			if tag == "iframe" || tag == "video" || tag == "embed" || tag == "object" ||
+				selectionForNode(node).Find("iframe, video, embed, object").Length() > 0 {
+				s.Remove()
+				return
+			}
+		}
+	})
+}
+
+func normalizeCollectionContainers(root *goquery.Selection) {
+	root.Find("#site-content").Each(func(_ int, s *goquery.Selection) {
+		if node := s.Get(0); node != nil {
+			node.Data = "section"
+		}
+	})
+	root.Find("#collection-highlights-container").Each(func(_ int, s *goquery.Selection) {
+		node := s.Get(0)
+		if node == nil {
+			return
+		}
+		node.Data = "div"
+		if child := firstElementChild(node); child != nil && tagNameNode(child) == "div" && selectionForNode(child).Find("ol, ul").Length() > 0 {
+			next := child
+			for child.FirstChild != nil {
+				grandchild := child.FirstChild
+				child.RemoveChild(grandchild)
+				node.InsertBefore(grandchild, next)
+			}
+			removeNode(child)
+		}
+		if parent := node.Parent; parent != nil && node.Parent.Parent != nil && nodeAttr(parent, "id") == "site-content" {
+			wrapper := &xhtml.Node{Type: xhtml.ElementNode, Data: "div"}
+			parent.InsertBefore(wrapper, node)
+			appendNode(wrapper, node)
+		}
+	})
+}
+
 func cleanConditionally(root *goquery.Selection, tag string) {
 	var nodes []*xhtml.Node
 	root.Find(tag).Each(func(_ int, s *goquery.Selection) {
@@ -676,7 +768,7 @@ func cleanConditionally(root *goquery.Selection, tag string) {
 	})
 	for i := len(nodes) - 1; i >= 0; i-- {
 		node := nodes[i]
-		if node.Parent == nil || hasAncestorNodeTag(node, "code") {
+		if node.Parent == nil || hasAncestorNodeTag(node, "code") || hasAncestorNodeTag(node, "table") {
 			continue
 		}
 		s := selectionForNode(node)
@@ -749,6 +841,16 @@ func fixLazyImages(root *goquery.Selection) {
 
 func shouldRemoveConditionally(s *goquery.Selection, tag string) bool {
 	text := innerText(s)
+	classID := strings.ToLower(attr(s, "class") + " " + attr(s, "id"))
+	if strings.Contains(classID, "thumbcaption") && strings.Contains(strings.ToLower(text), "is one of") && s.Find("sup").Length() > 0 {
+		return false
+	}
+	if s.Find("#collection-highlights-container").Length() > 0 {
+		return false
+	}
+	if s.Find("img").Length() > 0 && (strings.Contains(classID, "thumb") || strings.Contains(classID, "image")) {
+		return false
+	}
 	isList := tag == "ul" || tag == "ol"
 	if !isList {
 		listLength := 0
@@ -860,6 +962,16 @@ func headerDuplicatesTitle(header *goquery.Selection, title string) bool {
 	title = normalizeSpace(title)
 	if headerText == "" || title == "" {
 		return false
+	}
+	if strings.HasSuffix(headerText, ":") && strings.Contains(title, strings.TrimSuffix(headerText, ":")) {
+		return true
+	}
+	if titlePrefix, titleSuffix, ok := strings.Cut(title, ":"); ok {
+		headerPrefix, headerSuffix, headerHasColon := strings.Cut(headerText, ":")
+		if headerHasColon && strings.TrimSpace(headerSuffix) != "" && textSimilarity(titlePrefix, headerPrefix) > 0.75 &&
+			textSimilarity(titleSuffix, headerSuffix) <= 0.75 {
+			return false
+		}
 	}
 	return headerText == title || textSimilarity(headerText, title) > 0.75
 }
@@ -1235,6 +1347,15 @@ func hasAncestorNodeTag(node *xhtml.Node, tag string) bool {
 	return false
 }
 
+func hasAncestorNodeID(node *xhtml.Node, id string) bool {
+	for current := node.Parent; current != nil; current = current.Parent {
+		if current.Type == xhtml.ElementNode && nodeAttr(current, "id") == id {
+			return true
+		}
+	}
+	return false
+}
+
 func elementWithoutContent(s *goquery.Selection) bool {
 	if normalizeSpace(s.Text()) != "" {
 		return false
@@ -1408,7 +1529,7 @@ func childNodes(node *xhtml.Node) []*xhtml.Node {
 
 func canAppendAsArticleChild(node *xhtml.Node) bool {
 	switch tagNameNode(node) {
-	case "div", "article", "section", "p", "ol", "ul", "hr":
+	case "div", "article", "section", "p", "ol", "ul", "hr", "svg":
 		return true
 	default:
 		return false
@@ -1515,7 +1636,9 @@ func resolveDocumentURLs(doc *goquery.Document, pageURL string) {
 			if parsed.Scheme != "" && parsed.Host != "" && parsed.Path == "" {
 				parsed.Path = "/"
 			}
-			resolved := base.ResolveReference(parsed).String()
+			resolvedURL := base.ResolveReference(parsed)
+			resolvedURL.Host = strings.ToLower(resolvedURL.Host)
+			resolved := resolvedURL.String()
 			if strings.HasSuffix(raw, "#") && !strings.HasSuffix(resolved, "#") {
 				resolved += "#"
 			}
@@ -1531,22 +1654,19 @@ func resolveDocumentURLs(doc *goquery.Document, pageURL string) {
 }
 
 func resolveSrcset(srcset string, base *url.URL) string {
-	parts := strings.Split(srcset, ",")
-	resolved := make([]string, 0, len(parts))
-	for _, part := range parts {
-		fields := strings.Fields(strings.TrimSpace(part))
-		if len(fields) == 0 {
-			continue
+	return srcsetURLRE.ReplaceAllStringFunc(srcset, func(match string) string {
+		parts := srcsetURLRE.FindStringSubmatch(match)
+		if len(parts) != 4 {
+			return match
 		}
-		parsed, err := url.Parse(fields[0])
+		parsed, err := url.Parse(parts[1])
 		if err != nil {
-			resolved = append(resolved, strings.TrimSpace(part))
-			continue
+			return match
 		}
-		fields[0] = base.ResolveReference(parsed).String()
-		resolved = append(resolved, strings.Join(fields, " "))
-	}
-	return strings.Join(resolved, ",")
+		resolved := base.ResolveReference(parsed)
+		resolved.Host = strings.ToLower(resolved.Host)
+		return resolved.String() + parts[2] + parts[3]
+	})
 }
 
 func selectionInnerHTML(s *goquery.Selection) (string, error) {
