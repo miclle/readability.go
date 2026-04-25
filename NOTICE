@@ -1,0 +1,14 @@
+readability.go
+
+This project is a Go implementation intended to be behavior-compatible with
+Mozilla Readability.
+
+Compatibility test data in testdata/mozilla/test-pages is copied from
+mozilla/readability:
+
+  https://github.com/mozilla/readability
+
+Mozilla Readability is licensed under the Apache License, Version 2.0.
+
+  Copyright (c) 2010 Arc90 Inc
+

@@ -1,0 +1,6 @@
+repo: https://github.com/mozilla/readability
+commit: 08be6b4bdb204dd333c9b7a0cfbc0e730b257252
+path: test/test-pages
+license: Apache-2.0
+copyright: Copyright (c) 2010 Arc90 Inc
+copied-at: 2026-04-25

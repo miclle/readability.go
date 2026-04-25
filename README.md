@@ -1,1 +1,61 @@
 # readability.go
+
+Go implementation of Mozilla Readability, aiming for fixture-level behavior
+compatibility with [`mozilla/readability`](https://github.com/mozilla/readability).
+
+## Status
+
+This project is at the compatibility porting stage.
+
+- Mozilla `test/test-pages` fixtures are copied into `testdata/mozilla/test-pages`.
+- The upstream fixture source is pinned in `testdata/mozilla/UPSTREAM`.
+- Metadata comparison is wired up for all pinned Mozilla metadata fixtures;
+  the current self-contained implementation matches 130 of 130.
+- Canonical content comparison is wired up for all pinned Mozilla content
+  fixtures; 1 of 130 currently matches.
+- Full compatibility checks can be run with
+  `READABILITY_FULL_COMPAT=1 go test -run 'TestParseAllMozilla(Metadata|Content)Fixtures'`.
+
+The implementation is intentionally self-contained and does not depend on
+other Go Readability ports. Current work is focused on replacing broad
+heuristics with fixture-proven compatibility behavior from Readability.js.
+
+## Usage
+
+```go
+package main
+
+import (
+	"fmt"
+	"log"
+	"os"
+
+	readability "github.com/miclle/readability.go"
+)
+
+func main() {
+	f, err := os.Open("article.html")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer f.Close()
+
+	article, err := readability.FromReader(f, "https://example.com/article", nil)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	fmt.Println(article.Title)
+	fmt.Println(article.TextContent)
+}
+```
+
+## Upstream Test Data
+
+Compatibility fixtures under `testdata/mozilla/test-pages` are copied from
+Mozilla Readability and are licensed under the Apache License, Version 2.0.
+See `NOTICE` and `testdata/mozilla/UPSTREAM` for source and copyright details.
+
+## License
+
+Apache License 2.0.
