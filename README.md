@@ -11,7 +11,7 @@ This project is at the compatibility porting stage.
 - The upstream fixture source is pinned in `testdata/UPSTREAM`.
 - Metadata and content comparison are wired up for all pinned Mozilla fixtures.
 - Full compatibility benchmarks can be run with
-  `READABILITY_FULL_COMPAT=1 go test -run 'TestParseAllMozilla(Metadata|Content)Fixtures'`.
+  `READABILITY_FULL_COMPAT=1 go test -cover -count=1 -run 'TestParseAllMozilla(Metadata|Content)Fixtures'`.
 
 The implementation is intentionally self-contained and does not depend on
 other Go Readability ports. Current work is focused on general Readability
@@ -20,9 +20,9 @@ fixtures into production logic.
 
 ## Development
 
-- Run `make test` for the default test suite.
-- Run `make compat-test` before changing parser, scoring, cleaning, or metadata
-  behavior to inspect benchmark drift.
+- Run `make all` for the default quality gate.
+- Run `make test` for the default test suite, race detector, coverage summary,
+  and full Mozilla compatibility drift report.
 - Run `make vet` for static checks.
 
 ## Implementation Layout
