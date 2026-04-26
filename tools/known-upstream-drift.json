@@ -1,0 +1,30 @@
+{
+  "cnn": {
+    "fields": ["content", "textContent"],
+    "reason": "current upstream keeps a small SmartAsset attribution block that this port removes with the embed"
+  },
+  "firefox-nightly-blog": {
+    "fields": ["byline", "content", "textContent"],
+    "reason": "current upstream selects a newsletter block while pinned fixtures keep the article body"
+  },
+  "hukumusume": {
+    "fields": ["content", "textContent"],
+    "reason": "current upstream returns a shorter legacy table extraction than the pinned fixture"
+  },
+  "lifehacker-post-comment-load": {
+    "fields": ["textContent"],
+    "reason": "textContent whitespace around block boundaries differs"
+  },
+  "lifehacker-working": {
+    "fields": ["textContent"],
+    "reason": "textContent whitespace around block boundaries differs"
+  },
+  "medicalnewstoday": {
+    "fields": ["byline", "content", "textContent"],
+    "reason": "current upstream selects a print-message block while pinned fixtures keep the article body"
+  },
+  "wikipedia": {
+    "fields": ["content"],
+    "reason": "Go parser serializes an implicit tbody that current upstream omits"
+  }
+}

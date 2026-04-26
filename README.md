@@ -30,7 +30,13 @@ fixtures into production logic.
 `tools/compare-upstream.mjs` compares this implementation with the current
 Mozilla Readability checkout. Some differences are intentionally left open when
 chasing current upstream would either break pinned fixtures or require
-site-specific behavior:
+site-specific behavior. The machine-readable allowlist lives in
+`tools/known-upstream-drift.json`. Pass `--known-drift` to the compare tool to
+allow only these documented differences while still failing on new drift:
+
+```sh
+READABILITY_GO_JSON=/tmp/readability-json node tools/compare-upstream.mjs --all --char-threshold 1 --known-drift
+```
 
 - `firefox-nightly-blog` and `medicalnewstoday`: current upstream selects
   newsletter or print-message blocks, while the pinned fixtures and this port

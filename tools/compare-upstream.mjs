@@ -14,9 +14,10 @@ const { Readability } = require(join(upstream, "index.js"));
 const JSDOMParser = require(join(upstream, "JSDOMParser.js"));
 
 const compareAll = args.includes("--all");
+const allowKnownDrift = args.includes("--known-drift");
 const charThreshold = numberOption("--char-threshold", 500);
 const requested = args.filter((arg, index) => {
-  if (arg === "--all" || arg === "--char-threshold" || arg === "--upstream") {
+  if (arg === "--all" || arg === "--known-drift" || arg === "--char-threshold" || arg === "--upstream") {
     return false;
   }
   if (args[index - 1] === "--char-threshold" || args[index - 1] === "--upstream") {
@@ -41,6 +42,8 @@ const fixtures = compareAll ? allFixtures() : requested.length > 0 ? requested :
 const fields = ["title", "byline", "excerpt", "siteName", "publishedTime", "dir", "textContent"];
 const maxText = 180;
 let mismatches = 0;
+let knownMismatches = 0;
+const knownUpstreamDrift = allowKnownDrift ? readKnownUpstreamDrift() : {};
 
 for (const fixture of fixtures) {
   const sourcePath = join(fixtureRoot, fixture, "source.html");
@@ -53,9 +56,16 @@ for (const fixture of fixtures) {
     console.log(`ok ${fixture}`);
     continue;
   }
+  const unexpectedDiffs = allowKnownDrift ? diffs.filter(diff => !isKnownDrift(fixture, diff.field)) : diffs;
+  if (allowKnownDrift && unexpectedDiffs.length === 0) {
+    knownMismatches++;
+    const known = knownUpstreamDrift[fixture];
+    console.log(`known-diff ${fixture}: ${known.reason}`);
+    continue;
+  }
   mismatches++;
   console.log(`diff ${fixture}`);
-  for (const diff of diffs) {
+  for (const diff of unexpectedDiffs) {
     const detail = typeof diff.js === "string" && typeof diff.go === "string"
       ? ` len(js/go)=${diff.js.length}/${diff.go.length} firstDiff=${firstDiffIndex(diff.js, diff.go)}`
       : "";
@@ -65,8 +75,21 @@ for (const fixture of fixtures) {
   }
 }
 
+if (allowKnownDrift && knownMismatches > 0) {
+  console.log(`known-drift ${knownMismatches}`);
+}
+
 if (mismatches > 0) {
   process.exitCode = 1;
+}
+
+function isKnownDrift(fixture, field) {
+  const known = knownUpstreamDrift[fixture];
+  return Boolean(known && known.fields.includes(field));
+}
+
+function readKnownUpstreamDrift() {
+  return JSON.parse(readFileSync(join(root, "tools", "known-upstream-drift.json"), "utf8"));
 }
 
 function parseUpstream(source, url) {
