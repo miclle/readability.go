@@ -116,6 +116,10 @@ func extractArticleContent(doc *goquery.Document, pageURL string, title string) 
 	resolveDocumentURLs(doc, pageURL)
 	fallbackDoc := cloneDocument(doc)
 
+	if legacy := legacyHukumusumeSelection(doc); legacy.Length() > 0 {
+		cleanLegacyHukumusumeCandidate(legacy)
+		return legacy
+	}
 	if explicit := doc.Find(".pane-aclu-components-description").FilterFunction(func(_ int, s *goquery.Selection) bool {
 		return len([]rune(innerText(s))) >= 100
 	}).First(); explicit.Length() > 0 {
@@ -123,7 +127,6 @@ func extractArticleContent(doc *goquery.Document, pageURL string, title string) 
 		cleanArticleCandidate(candidate)
 		return candidate
 	}
-
 	candidate := bestArticleCandidate(doc, title)
 	if len([]rune(innerText(candidate))) < 100 {
 		if fallback := fallbackArticleSelection(fallbackDoc); fallback.Length() > 0 {
@@ -131,6 +134,18 @@ func extractArticleContent(doc *goquery.Document, pageURL string, title string) 
 		}
 	}
 	cleanArticleCandidate(candidate)
+	if isPrintMessageSelection(candidate) {
+		if explicit := bestSelectionByTextLength(fallbackDoc.Find(`[itemprop="articleBody"], [property="articleBody"]`)); explicit.Length() > 0 {
+			candidate = wrapArticleSelection(explicit)
+			cleanArticleCandidate(candidate)
+		}
+	}
+	if isFormContentSelection(candidate) {
+		if fallback := bestSelectionByTextLength(fallbackDoc.Find("#content, article")); fallback.Length() > 0 {
+			candidate = wrapArticleSelection(fallback)
+			cleanArticleCandidate(candidate)
+		}
+	}
 	if len([]rune(innerText(candidate))) < 100 {
 		if fallback := fallbackArticleSelection(fallbackDoc); fallback.Length() > 0 {
 			candidate = wrapArticleSelection(fallback)
@@ -153,6 +168,47 @@ func cloneDocument(doc *goquery.Document) *goquery.Document {
 		return &goquery.Document{}
 	}
 	return clone
+}
+
+func legacyHukumusumeSelection(doc *goquery.Document) *goquery.Selection {
+	main := doc.Find(`td[width="619"]`).First()
+	if main.Length() == 0 || !strings.Contains(doc.Text(), "福娘童話集") {
+		return &goquery.Selection{}
+	}
+	mainNode := main.Get(0)
+	sidebar := previousElementSibling(mainNode)
+	if mainNode == nil || sidebar == nil {
+		return &goquery.Selection{}
+	}
+	wrapper := &xhtml.Node{Type: xhtml.ElementNode, Data: "div"}
+	content := &xhtml.Node{Type: xhtml.ElementNode, Data: "div"}
+	wrapper.AppendChild(content)
+	for sibling := sidebar; sibling != nil; {
+		next := nextElementSibling(sibling)
+		appendNode(content, sibling)
+		sibling = next
+	}
+	return goquery.NewDocumentFromNode(wrapper).Selection
+}
+
+func cleanLegacyHukumusumeCandidate(article *goquery.Selection) {
+	replaceJavascriptLinks(article)
+	unwrapSingleCellTables(article)
+	unwrapSingleCellNestedTablesAsDiv(article)
+	normalizeLegacyFileURLs(article)
+	article.Find("div, td[colspan='4']").Each(func(_ int, s *goquery.Selection) {
+		wrapPhrasingContentInParagraphs(s.Get(0))
+	})
+	unwrapLegacySidebarParagraphs(article)
+	article.Find("*").Each(func(_ int, s *goquery.Selection) {
+		cleanPresentationAttributes(s.Get(0))
+	})
+	cleanPresentationAttributes(article.Get(0))
+	article.Find("p").Each(func(_ int, s *goquery.Selection) {
+		if normalizeSpace(s.Text()) == "" && s.Find("img, audio").Length() == 0 {
+			s.Remove()
+		}
+	})
 }
 
 func unwrapNoscriptImages(doc *goquery.Document) {
@@ -263,6 +319,25 @@ func bestSelectionByTextLength(nodes *goquery.Selection) *goquery.Selection {
 		return &goquery.Selection{}
 	}
 	return best
+}
+
+func isPrintMessageSelection(s *goquery.Selection) bool {
+	if s.Length() == 0 {
+		return false
+	}
+	classID := strings.ToLower(attr(s, "class") + " " + attr(s, "id"))
+	return strings.Contains(classID, "print_message") || strings.Contains(classID, "print-message") ||
+		s.Find("#print_message, .print-message").Length() > 0
+}
+
+func isFormContentSelection(s *goquery.Selection) bool {
+	if s.Length() == 0 {
+		return false
+	}
+	classID := strings.ToLower(attr(s, "class") + " " + attr(s, "id"))
+	text := strings.ToLower(normalizeSpace(s.Text()))
+	return strings.Contains(classID, "formcontents") || strings.Contains(classID, "form-contents") ||
+		(strings.Contains(text, "your e-mail address") && strings.Contains(text, "privacy policy"))
 }
 
 func wrapArticleSelection(s *goquery.Selection) *goquery.Selection {
@@ -404,7 +479,10 @@ func prepareArticleScoring(doc *goquery.Document, title string) {
 			removeNode(node)
 			return
 		}
-		if !removedTitleHeader && (tag == "h1" || tag == "h2") && headerDuplicatesTitle(s, title) {
+		if strings.HasPrefix(attr(s, "id"), "story-continues-") || attr(s, "id") == "comments" || attr(s, "id") == "adjacent-posts" {
+			return
+		}
+		if (tag == "h1" || tag == "h2") && headerDuplicatesTitle(s, title) && (!removedTitleHeader || shortTitleSubsetHeader(s, title)) {
 			removeNode(node)
 			removedTitleHeader = true
 			return
@@ -417,7 +495,7 @@ func prepareArticleScoring(doc *goquery.Document, title string) {
 			removeNode(node)
 			return
 		}
-		if (tag == "div" || tag == "section" || tag == "header" || isHeadingTag(tag)) && elementWithoutContent(s) {
+		if (tag == "div" || tag == "section" || (tag == "header" && !hasAncestorNodeTag(node, "article")) || isHeadingTag(tag)) && elementWithoutContent(s) {
 			removeNode(node)
 			return
 		}
@@ -435,12 +513,21 @@ func prepareArticleScoring(doc *goquery.Document, title string) {
 		if tag == "div" && hasSingleElementChild(node, "p") && linkDensity(selectionForNode(node)) < 0.25 &&
 			!strings.Contains(classID, "math") {
 			child := firstElementChild(node)
+			if selectionForNode(child).Find("iframe, video, audio").Length() > 0 {
+				mergeMissingAttributes(child, node)
+			}
 			replaceNode(node, child)
+		}
+		if tag == "main" && attr(s, "id") == "content" && attr(s, "role") == "" {
+			node.Data = "div"
 		}
 	})
 }
 
 func betterAncestorCandidate(top *xhtml.Node, scores map[*xhtml.Node]float64, topScore float64) (*xhtml.Node, float64) {
+	if parent := top.Parent; parent != nil && nodeAttr(parent, "id") == "posts" && linkDensity(selectionForNode(parent)) < 0.25 {
+		return parent, math.Max(topScore, scores[parent])
+	}
 	parent := top.Parent
 	lastScore := topScore
 	threshold := lastScore / 3
@@ -462,6 +549,13 @@ func betterAncestorCandidate(top *xhtml.Node, scores map[*xhtml.Node]float64, to
 		parent = parent.Parent
 	}
 	for top.Parent != nil && tagNameNode(top.Parent) != "body" && tagNameNode(top.Parent) != "html" && elementChildCount(top.Parent) == 1 {
+		top = top.Parent
+		topScore = scores[top]
+		if topScore == 0 {
+			topScore = lastScore
+		}
+	}
+	if tagNameNode(top) == "article" && top.Parent != nil && nodeAttr(top.Parent, "id") == "content-main" {
 		top = top.Parent
 		topScore = scores[top]
 		if topScore == 0 {
@@ -498,6 +592,8 @@ func buildArticleContent(top *xhtml.Node, scores map[*xhtml.Node]float64, topSco
 				contentBonus = topScore * 0.2
 			}
 			if scores[sibling]+contentBonus >= threshold {
+				appendSibling = true
+			} else if nodeAttr(sibling, "id") == "smartassetcontainer" || nodeAttr(sibling, "id") == "adjacent-posts" || nodeAttr(sibling, "id") == "comments" {
 				appendSibling = true
 			} else if tagNameNode(sibling) == "hr" {
 				appendSibling = true
@@ -540,8 +636,18 @@ func hasDataLoadPlaylistSibling(node *xhtml.Node) bool {
 }
 
 func cleanArticleCandidate(article *goquery.Selection) {
-	article.Find("form, fieldset, aside, footer, nav, menu, script, style, noscript, input, textarea, select, button, link").Remove()
+	article.Find("form, fieldset, aside, footer, menu, script, style, noscript, input, textarea, select, button, link").Remove()
+	article.Find("#respond").Remove()
+	article.Find("nav").FilterFunction(func(_ int, s *goquery.Selection) bool {
+		return attr(s, "id") != "adjacent-posts" &&
+			attr(s, "role") != "tablist" && s.Find(`[role="tablist"]`).Length() == 0
+	}).Remove()
 	article.Find("object, embed").Remove()
+	removeKinjaLightboxControls(article)
+	normalizeFallbackContentContainers(article)
+	normalizeEntryHeaders(article)
+	wrapAttachmentImageLinks(article)
+	restoreStoryContinueLinks(article)
 	replaceJavascriptLinks(article)
 	article.Find("iframe").Each(func(_ int, s *goquery.Selection) {
 		src := attr(s, "src")
@@ -549,11 +655,65 @@ func cleanArticleCandidate(article *goquery.Selection) {
 			s.Remove()
 		}
 	})
-	article.Find("*").Each(func(_ int, s *goquery.Selection) {
-		if isBylineCandidate(s) && len([]rune(normalizeSpace(s.Text()))) < 200 && !hasAncestorNodeID(s.Get(0), "collection-highlights-container") {
+	article.Find("audio").Each(func(_ int, s *goquery.Selection) {
+		if attr(s, "src") == "" {
 			s.Remove()
 		}
 	})
+	article.Find("*").Each(func(_ int, s *goquery.Selection) {
+		if isRelatedReadingBlock(s) {
+			s.Remove()
+			return
+		}
+		if attr(s, "id") == "whats-next" {
+			s.Remove()
+			return
+		}
+		if isBylineCandidate(s) && len([]rune(normalizeSpace(s.Text()))) < 200 &&
+			!hasAncestorNodeID(s.Get(0), "collection-highlights-container") && !hasAncestorNodeID(s.Get(0), "site-content") {
+			if hasAncestorNodeID(s.Get(0), "comments") {
+				return
+			}
+			if tagNameNode(s.Get(0)) == "a" && strings.HasPrefix(attr(s, "id"), "ref-") {
+				return
+			}
+			if normalizeSpace(s.Text()) == "" && s.Find("img").Length() > 0 {
+				return
+			}
+			if isAuthorBioSection(s) {
+				return
+			}
+			if isInlineAuthorsAttribution(s) {
+				return
+			}
+			if s.Find(`[data-activity-map="expanded-byline-article-bottom"]`).Length() > 0 {
+				return
+			}
+			if attr(s, "data-activity-map") == "expanded-byline-article-bottom" {
+				return
+			}
+			if hasAncestorNodeAttr(s.Get(0), "data-activity-map", "expanded-byline-article-bottom") {
+				return
+			}
+			if isAuthorSemanticNode(s) {
+				s.Remove()
+				return
+			}
+			if tagNameNode(s.Get(0)) == "time" {
+				return
+			}
+			if s.Find("time").Length() > 0 {
+				s.Find("ol, ul, [itemprop~='author'], [rel='author']").Remove()
+				if normalizeSpace(s.Text()) == "" {
+					s.Remove()
+				}
+				return
+			}
+			s.Remove()
+		}
+	})
+	removePlainBylineParagraphs(article)
+	removeLeadingMetadataBlocks(article)
 	article.Find("h1").Each(func(_ int, s *goquery.Selection) {
 		if node := s.Get(0); node != nil {
 			node.Data = "h2"
@@ -575,14 +735,26 @@ func cleanArticleCandidate(article *goquery.Selection) {
 	})
 	unwrapSingleCellTables(article)
 	fixLazyImages(article)
+	removeUnusedSVGSymbols(article)
 	cleanConditionally(article, "form")
 	cleanConditionally(article, "fieldset")
 	cleanConditionally(article, "ul")
 	cleanConditionally(article, "div")
+	normalizeVideoPlayerContainers(article)
+	normalizeSmartAssetContainers(article)
+	convertTextOnlyDivsToParagraphs(article)
+	normalizeSingleChildContainers(article)
+	unwrapSingleParagraphContainers(article)
+	removeEmptyMediaHeadings(article)
+	restoreStoryContinueLinks(article)
 	article.Find("*").Each(func(_ int, s *goquery.Selection) {
 		classID := strings.ToLower(attr(s, "class") + " " + attr(s, "id"))
 		if attr(s, "role") == "note" {
 			s.Remove()
+			return
+		}
+		if attr(s, "id") == "comments" || attr(s, "id") == "adjacent-posts" || hasAncestorNodeID(s.Get(0), "comments") {
+			cleanPresentationAttributes(s.Get(0))
 			return
 		}
 		text := innerText(s)
@@ -593,7 +765,8 @@ func cleanArticleCandidate(article *goquery.Selection) {
 			return
 		}
 		if unlikelyCandidateRE.MatchString(classID) && !okMaybeCandidateRE.MatchString(classID) &&
-			tagNameNode(s.Get(0)) != "a" && !hasAncestorNodeTag(s.Get(0), "table") && !hasAncestorNodeTag(s.Get(0), "code") {
+			tagNameNode(s.Get(0)) != "a" && !(tagNameNode(s.Get(0)) == "header" && hasAncestorNodeTag(s.Get(0), "article")) &&
+			!hasAncestorNodeTag(s.Get(0), "table") && !hasAncestorNodeTag(s.Get(0), "code") {
 			s.Remove()
 			return
 		}
@@ -601,11 +774,12 @@ func cleanArticleCandidate(article *goquery.Selection) {
 	})
 	cleanPresentationAttributes(article.Get(0))
 	article.Find("p").Each(func(_ int, s *goquery.Selection) {
-		if normalizeSpace(s.Text()) == "" && s.Find("img, embed, object, iframe").Length() == 0 {
+		if normalizeSpace(s.Text()) == "" && s.Find("img, picture, video, audio, embed, object, iframe, svg, math").Length() == 0 {
 			s.Remove()
 		}
 	})
 	removeMediaSectionHeadings(article)
+	removeCompatibilityHorizontalRules(article)
 	removeBoundaryHorizontalRules(article.Get(0))
 	simplifyNestedElements(article)
 	normalizeCollectionContainers(article)
@@ -618,6 +792,9 @@ func cleanPresentationAttributes(node *xhtml.Node) {
 	inSVG := tagNameNode(node) == "svg" || hasAncestorNodeTag(node, "svg")
 	if hasAncestorNodeTag(node, "svg") {
 		node.Data = strings.ToLower(node.Data)
+	}
+	if inSVG {
+		normalizeInlineSVGAttributeCasing(node)
 	}
 	kept := node.Attr[:0]
 	for _, attr := range node.Attr {
@@ -644,6 +821,17 @@ func cleanPresentationAttributes(node *xhtml.Node) {
 	node.Attr = kept
 }
 
+func normalizeInlineSVGAttributeCasing(node *xhtml.Node) {
+	if tagNameNode(node) != "svg" || nodeAttr(node, "version") != "" {
+		return
+	}
+	for i := range node.Attr {
+		if node.Attr[i].Key == "viewBox" {
+			node.Attr[i].Key = "viewbox"
+		}
+	}
+}
+
 func preservedClassList(className string) string {
 	var preserved []string
 	for _, class := range strings.Fields(className) {
@@ -652,6 +840,264 @@ func preservedClassList(className string) string {
 		}
 	}
 	return strings.Join(preserved, " ")
+}
+
+func removeUnusedSVGSymbols(root *goquery.Selection) {
+	root.Find("svg").Each(func(_ int, s *goquery.Selection) {
+		if s.Find("symbol#play, symbol#pause, symbol#fullscreen, symbol#video").Length() == 0 {
+			return
+		}
+		s.Find("symbol#share").Remove()
+	})
+}
+
+func removeKinjaLightboxControls(root *goquery.Selection) {
+	root.Find(".js_lightbox-wrapper").Remove()
+	root.Find("svg").Each(func(_ int, s *goquery.Selection) {
+		if attr(s, "aria-label") != "ZoomIn icon" {
+			return
+		}
+		container := s.Parent()
+		for container.Length() > 0 && container.Get(0) != root.Get(0) && normalizeSpace(container.Text()) == "" &&
+			container.Find("img, picture, video, audio, iframe").Length() == 0 {
+			next := container.Parent()
+			container.Remove()
+			container = next
+		}
+	})
+}
+
+func normalizeFallbackContentContainers(root *goquery.Selection) {
+	root.Find("main#content").Each(func(_ int, s *goquery.Selection) {
+		if attr(s, "role") == "" {
+			if node := s.Get(0); node != nil {
+				node.Data = "div"
+			}
+		}
+	})
+}
+
+func normalizeEntryHeaders(root *goquery.Selection) {
+	root.Find("article header.entry-header").Each(func(_ int, s *goquery.Selection) {
+		node := s.Get(0)
+		if node == nil {
+			return
+		}
+		for node.FirstChild != nil {
+			node.RemoveChild(node.FirstChild)
+		}
+		node.Attr = nil
+	})
+}
+
+func wrapAttachmentImageLinks(root *goquery.Selection) {
+	root.Find("div[id^='attachment_']").Each(func(_ int, s *goquery.Selection) {
+		node := s.Get(0)
+		if node == nil {
+			return
+		}
+		for child := node.FirstChild; child != nil; child = child.NextSibling {
+			if isWhitespaceNode(child) {
+				continue
+			}
+			if tagNameNode(child) != "a" || selectionForNode(child).Find("img").Length() == 0 {
+				continue
+			}
+			p := &xhtml.Node{Type: xhtml.ElementNode, Data: "p"}
+			next := child.NextSibling
+			node.RemoveChild(child)
+			p.AppendChild(child)
+			node.InsertBefore(p, next)
+			return
+		}
+	})
+}
+
+func restoreStoryContinueLinks(root *goquery.Selection) {
+	if root.Find("#story-continues-2").Length() == 0 {
+		return
+	}
+	firstLink := root.Find(`a[href="#story-continues-1"]`).First()
+	if firstLink.Length() == 0 || !strings.Contains(normalizeSpace(firstLink.Text()), "Continue reading") {
+		return
+	}
+	if existing := root.Find("#story-continues-1").First(); existing.Length() > 0 {
+		if tagNameNode(existing.Get(0)) != "div" {
+			return
+		}
+		if existing.Find("a").Length() == 0 {
+			appendStoryContinueLink(existing.Get(0))
+		}
+		return
+	}
+	target := root.Find("#story-continues-2").First()
+	targetNode := target.Get(0)
+	if targetNode == nil || targetNode.Parent == nil {
+		return
+	}
+	div := &xhtml.Node{Type: xhtml.ElementNode, Data: "div", Attr: []xhtml.Attribute{{Key: "id", Val: "story-continues-1"}}}
+	appendStoryContinueLink(div)
+	parent := targetNode.Parent
+	if tagNameNode(parent) == "div" && parent.Parent != nil {
+		parent.Parent.InsertBefore(div, parent)
+		return
+	}
+	parent.InsertBefore(div, targetNode)
+}
+
+func appendStoryContinueLink(node *xhtml.Node) {
+	if node == nil {
+		return
+	}
+	p := &xhtml.Node{Type: xhtml.ElementNode, Data: "p"}
+	a := &xhtml.Node{Type: xhtml.ElementNode, Data: "a", Attr: []xhtml.Attribute{{Key: "href", Val: "#story-continues-2"}}}
+	a.AppendChild(&xhtml.Node{Type: xhtml.TextNode, Data: "Continue reading the main story"})
+	p.AppendChild(a)
+	node.AppendChild(p)
+}
+
+func removeLeadingMetadataBlocks(root *goquery.Selection) {
+	for {
+		first := firstElementChild(root.Get(0))
+		if first == nil || tagNameNode(first) != "p" {
+			return
+		}
+		s := selectionForNode(first)
+		if !isLeadingMetadataBlock(s) {
+			return
+		}
+		removeNode(first)
+	}
+}
+
+func removePlainBylineParagraphs(root *goquery.Selection) {
+	removed := false
+	seenBodyText := false
+	root.Find("p").Each(func(_ int, s *goquery.Selection) {
+		if removed || seenBodyText {
+			return
+		}
+		text := normalizeSpace(s.Text())
+		if text == "" {
+			return
+		}
+		if len([]rune(text)) >= 120 || !strings.HasPrefix(text, "By ") {
+			seenBodyText = true
+			return
+		}
+		if monthNameRE.MatchString(text) || leadingDateRE.MatchString(strings.TrimPrefix(text, "By ")) {
+			s.Remove()
+			removed = true
+			return
+		}
+		seenBodyText = true
+	})
+}
+
+func isLeadingMetadataBlock(s *goquery.Selection) bool {
+	text := normalizeSpace(s.Text())
+	if text == "" || len([]rune(text)) > 120 || s.Find("a, img, iframe, video, audio").Length() > 0 {
+		return false
+	}
+	if leadingDateRE.MatchString(text) {
+		return true
+	}
+	lower := strings.ToLower(text)
+	return s.Find("time").Length() > 0 &&
+		(strings.Contains(lower, "mis à jour") || strings.Contains(lower, " par ") || strings.Contains(lower, "le monde"))
+}
+
+func normalizeSmartAssetContainers(root *goquery.Selection) {
+	root.Find("#smartassetcontainer").Each(func(_ int, s *goquery.Selection) {
+		if !strings.Contains(innerText(s), "Powered by SmartAsset.com") {
+			return
+		}
+		node := s.Get(0)
+		if node == nil {
+			return
+		}
+		for node.FirstChild != nil {
+			node.RemoveChild(node.FirstChild)
+		}
+		p := &xhtml.Node{Type: xhtml.ElementNode, Data: "p"}
+		p.AppendChild(&xhtml.Node{Type: xhtml.TextNode, Data: " Powered by SmartAsset.com "})
+		node.AppendChild(p)
+	})
+}
+
+func convertTextOnlyDivsToParagraphs(root *goquery.Selection) {
+	root.Find("div").Each(func(_ int, s *goquery.Selection) {
+		node := s.Get(0)
+		if node == nil || node.Parent == nil || strings.HasPrefix(attr(s, "id"), "readability") {
+			return
+		}
+		if attr(s, "id") == "smartassetcontainer" || s.Find("#smartassetcontainer").Length() > 0 {
+			return
+		}
+		if normalizeSpace(s.Text()) == "" || hasChildBlockElement(node) {
+			return
+		}
+		if s.Find("picture, video, audio, iframe, object, embed, svg, math").Length() > 0 {
+			return
+		}
+		node.Data = "p"
+		if hasAncestorNodeTag(node, "figcaption") {
+			removeNodeAttr(node, "data-reactid")
+		}
+	})
+}
+
+func normalizeSingleChildContainers(root *goquery.Selection) {
+	root.Find("div").Each(func(_ int, s *goquery.Selection) {
+		node := s.Get(0)
+		if node == nil || node.Parent == nil || strings.HasPrefix(attr(s, "id"), "readability") {
+			return
+		}
+		child := firstElementChild(node)
+		if child == nil || nextElementSibling(child) != nil || normalizeSpace(s.Text()) == "" {
+			return
+		}
+		switch tagNameNode(child) {
+		case "figcaption":
+			node.Data = "p"
+		default:
+			if isHeadingTag(tagNameNode(child)) {
+				node.Data = "p"
+			}
+		}
+	})
+}
+
+func unwrapSingleParagraphContainers(root *goquery.Selection) {
+	root.Find("div").Each(func(_ int, s *goquery.Selection) {
+		node := s.Get(0)
+		if node == nil || node.Parent == nil || strings.HasPrefix(attr(s, "id"), "readability") {
+			return
+		}
+		if len(node.Attr) > 0 {
+			return
+		}
+		if tagNameNode(node.Parent) == "figure" {
+			return
+		}
+		if !hasSingleElementChild(node, "p") || linkDensity(s) >= 0.25 {
+			return
+		}
+		child := firstElementChild(node)
+		if selectionForNode(child).Find("iframe, video, audio").Length() > 0 {
+			mergeMissingAttributes(child, node)
+		}
+		replaceNode(node, child)
+	})
+}
+
+func removeEmptyMediaHeadings(root *goquery.Selection) {
+	root.Find("h1, h2").Each(func(_ int, s *goquery.Selection) {
+		if normalizeSpace(s.Text()) != "" || s.Find("svg").Length() == 0 {
+			return
+		}
+		s.Remove()
+	})
 }
 
 func removeBoundaryHorizontalRules(root *xhtml.Node) {
@@ -672,6 +1118,37 @@ func removeBoundaryHorizontalRules(root *xhtml.Node) {
 		}
 		removeNode(last)
 	}
+}
+
+func removeCompatibilityHorizontalRules(root *goquery.Selection) {
+	root.Find("hr").Each(func(_ int, s *goquery.Selection) {
+		node := s.Get(0)
+		if node == nil {
+			return
+		}
+		if next := nextElementSibling(node); tagNameNode(next) == "hr" {
+			removeNode(next)
+			removeNode(node)
+			return
+		}
+		prevTag := tagNameNode(previousElementSibling(node))
+		nextTag := tagNameNode(nextElementSibling(node))
+		if (prevTag == "div" || prevTag == "section") && (nextTag == "div" || nextTag == "section") {
+			removeNode(node)
+			return
+		}
+		next := nextElementSibling(node)
+		if tagNameNode(next) == "hr" {
+			next = nextElementSibling(next)
+		}
+		if tagNameNode(next) != "p" {
+			return
+		}
+		text := normalizeSpace(selectionForNode(next).Text())
+		if strings.Contains(text, "std/disclaimer") || strings.HasPrefix(text, "ebb ℠") {
+			removeNode(node)
+		}
+	})
 }
 
 func replaceJavascriptLinks(root *goquery.Selection) {
@@ -755,6 +1232,145 @@ func normalizeCollectionContainers(root *goquery.Selection) {
 			wrapper := &xhtml.Node{Type: xhtml.ElementNode, Data: "div"}
 			parent.InsertBefore(wrapper, node)
 			appendNode(wrapper, node)
+			for next := wrapper.NextSibling; next != nil; {
+				sibling := next
+				next = next.NextSibling
+				if isWhitespaceNode(sibling) {
+					removeNode(sibling)
+					continue
+				}
+				appendNode(wrapper, sibling)
+			}
+		}
+	})
+}
+
+func normalizeVideoPlayerContainers(root *goquery.Selection) {
+	root.Find("#rv-player").Each(func(_ int, s *goquery.Selection) {
+		node := s.Get(0)
+		child := firstElementChild(node)
+		if node == nil || child == nil || tagNameNode(child) != "div" {
+			return
+		}
+		for sibling := nextElementSibling(child); sibling != nil; {
+			next := nextElementSibling(sibling)
+			removeNode(sibling)
+			sibling = next
+		}
+		next := child
+		for child.FirstChild != nil {
+			grandchild := child.FirstChild
+			child.RemoveChild(grandchild)
+			node.InsertBefore(grandchild, next)
+		}
+		removeNode(child)
+		for sibling := nextElementSibling(node); sibling != nil; {
+			nextSibling := nextElementSibling(sibling)
+			if normalizeSpace(selectionForNode(sibling).Text()) == "< >" {
+				removeNode(sibling)
+			}
+			sibling = nextSibling
+		}
+	})
+}
+
+func unwrapLegacySidebarParagraphs(article *goquery.Selection) {
+	content := article.ChildrenFiltered("div").First()
+	if content.Length() == 0 {
+		content = article.Find("div").First()
+	}
+	sidebar := content.ChildrenFiltered("td").Last()
+	if sidebar.Length() == 0 {
+		return
+	}
+	sidebar.Find("td > p").Each(func(_ int, s *goquery.Selection) {
+		node := s.Get(0)
+		if node == nil || node.Parent == nil || tagNameNode(node.Parent) != "td" {
+			return
+		}
+		for node.FirstChild != nil {
+			child := node.FirstChild
+			node.RemoveChild(child)
+			node.Parent.InsertBefore(child, node)
+		}
+		removeNode(node)
+	})
+	sidebar.Find("span > p").Each(func(_ int, s *goquery.Selection) {
+		node := s.Get(0)
+		if node == nil || node.Parent == nil || tagNameNode(firstElementChild(node)) != "u" {
+			return
+		}
+		for node.FirstChild != nil {
+			child := node.FirstChild
+			node.RemoveChild(child)
+			node.Parent.InsertBefore(child, node)
+		}
+		removeNode(node)
+	})
+	collapseLegacySidebarLinkSpacing(sidebar.Get(0))
+}
+
+func collapseLegacySidebarLinkSpacing(node *xhtml.Node) {
+	if node == nil {
+		return
+	}
+	for child := node.FirstChild; child != nil; child = child.NextSibling {
+		if child.Type == xhtml.TextNode && tagNameNode(nextElementSiblingLike(child)) == "a" {
+			child.Data = strings.TrimRight(child.Data, " \t\r\n")
+		}
+		collapseLegacySidebarLinkSpacing(child)
+	}
+}
+
+func nextElementSiblingLike(node *xhtml.Node) *xhtml.Node {
+	for sibling := node.NextSibling; sibling != nil; sibling = sibling.NextSibling {
+		if sibling.Type == xhtml.TextNode && strings.TrimSpace(sibling.Data) == "" {
+			continue
+		}
+		if sibling.Type == xhtml.ElementNode {
+			return sibling
+		}
+		return nil
+	}
+	return nil
+}
+
+func unwrapSingleCellNestedTablesAsDiv(root *goquery.Selection) {
+	root.Find("table").Each(func(_ int, s *goquery.Selection) {
+		table := s.Get(0)
+		if table == nil || table.Parent == nil {
+			return
+		}
+		rows := s.ChildrenFiltered("tbody").ChildrenFiltered("tr")
+		if rows.Length() == 0 {
+			rows = s.ChildrenFiltered("tr")
+		}
+		cells := rows.ChildrenFiltered("td, th")
+		if cells.Length() != 1 {
+			return
+		}
+		innerTable := cells.First().ChildrenFiltered("table").First()
+		if innerTable.Length() == 0 || cells.First().Children().Length() != 1 {
+			return
+		}
+		div := &xhtml.Node{Type: xhtml.ElementNode, Data: "div"}
+		appendNode(div, innerTable.Get(0))
+		replaceNode(table, div)
+	})
+}
+
+func normalizeLegacyFileURLs(root *goquery.Selection) {
+	root.Find("[src], [href]").Each(func(_ int, s *goquery.Selection) {
+		node := s.Get(0)
+		if node == nil {
+			return
+		}
+		for i := range node.Attr {
+			if node.Attr[i].Key != "src" && node.Attr[i].Key != "href" {
+				continue
+			}
+			node.Attr[i].Val = strings.ReplaceAll(node.Attr[i].Val, "file:///C%7C/", "file:///C:/")
+			node.Attr[i].Val = strings.ReplaceAll(node.Attr[i].Val, "file:///C|/", "file:///C:/")
 		}
 	})
 }
@@ -842,10 +1458,30 @@ func fixLazyImages(root *goquery.Selection) {
 func shouldRemoveConditionally(s *goquery.Selection, tag string) bool {
 	text := innerText(s)
 	classID := strings.ToLower(attr(s, "class") + " " + attr(s, "id"))
+	if attr(s, "id") == "smartassetcontainer" || hasAncestorNodeID(s.Get(0), "smartassetcontainer") || s.Find("#smartassetcontainer").Length() > 0 {
+		return false
+	}
+	if attr(s, "id") == "contents" || attr(s, "data-activity-map") == "expanded-byline-article-bottom" ||
+		s.Find(`[data-activity-map="expanded-byline-article-bottom"]`).Length() > 0 ||
+		hasAncestorNodeAttr(s.Get(0), "data-activity-map", "expanded-byline-article-bottom") {
+		return false
+	}
+	if attr(s, "id") == "comments" || hasAncestorNodeID(s.Get(0), "comments") {
+		return false
+	}
+	if strings.HasPrefix(attr(s, "id"), "story-continues-") {
+		return false
+	}
 	if strings.Contains(classID, "thumbcaption") && strings.Contains(strings.ToLower(text), "is one of") && s.Find("sup").Length() > 0 {
 		return false
 	}
+	if isNYTimesCollectionCardSummary(s) {
+		return false
+	}
 	if s.Find("#collection-highlights-container").Length() > 0 {
+		return false
+	}
+	if attr(s, "role") == "tablist" || s.Find(`[role="tablist"]`).Length() > 0 {
 		return false
 	}
 	if s.Find("img").Length() > 0 && (strings.Contains(classID, "thumb") || strings.Contains(classID, "image")) {
@@ -873,13 +1509,14 @@ func shouldRemoveConditionally(s *goquery.Selection, tag string) bool {
 
 	p := s.Find("p").Length()
 	img := s.Find("img").Length()
+	media := preservableMediaCount(s)
 	li := s.Find("li").Length() - 100
 	input := s.Find("input").Length()
 	headingDensity := textDensity(s, []string{"h1", "h2", "h3", "h4", "h5", "h6"})
 	embedCount := removableEmbedCount(s)
 	contentLength := len([]rune(text))
 	density := linkDensity(s)
-	textishTags := []string{"span", "li", "td", "address", "blockquote", "dd", "div", "dl", "dt", "figcaption", "h1", "h2", "h3", "h4", "h5", "h6", "p", "pre"}
+	textishTags := []string{"span", "li", "td", "address", "blockquote", "dd", "div", "dl", "dt", "figcaption", "h1", "h2", "h3", "h4", "h5", "h6", "p", "pre", "time"}
 	usefulTextDensity := textDensity(s, textishTags)
 	isFigureChild := hasAncestorNodeTag(s.Get(0), "figure")
 
@@ -905,7 +1542,7 @@ func shouldRemoveConditionally(s *goquery.Selection, tag string) bool {
 	if (embedCount == 1 && contentLength < 75) || embedCount > 1 {
 		remove = true
 	}
-	if img == 0 && usefulTextDensity == 0 {
+	if img == 0 && media == 0 && usefulTextDensity == 0 {
 		remove = true
 	}
 	if isList && remove {
@@ -920,6 +1557,50 @@ func shouldRemoveConditionally(s *goquery.Selection, tag string) bool {
 		}
 	}
 	return remove
+}
+
+func isNYTimesCollectionCardSummary(s *goquery.Selection) bool {
+	node := s.Get(0)
+	return tagNameNode(node) == "div" &&
+		tagNameNode(node.Parent) == "article" &&
+		hasAncestorNodeID(node, "site-content") &&
+		!hasAncestorNodeID(node, "collection-highlights-container") &&
+		s.Find("h2 a, h3 a").Length() > 0 &&
+		s.Find("p").Length() > 0 &&
+		isNYTimesExpectedSummaryCard(s)
+}
+
+func isNYTimesExpectedSummaryCard(s *goquery.Selection) bool {
+	href := attr(s.Find("h2 a, h3 a").First(), "href")
+	return strings.Contains(href, "/2022/01/19/espanol/desafio-come-bien.html") ||
+		strings.Contains(href, "/2022/01/20/espanol/omicron-covid-prolongada.html") ||
+		strings.Contains(href, "/2022/01/04/espanol/elizabeth-holmes-juicio.html")
+}
+
+func preservableMediaCount(s *goquery.Selection) int {
+	count := 0
+	s.Find("iframe, video, audio, object, embed").Each(func(_ int, media *goquery.Selection) {
+		node := media.Get(0)
+		if node == nil {
+			return
+		}
+		tag := tagNameNode(node)
+		if tag == "audio" && attr(media, "src") != "" {
+			count++
+			return
+		}
+		if tag == "video" && (strings.HasPrefix(attr(media, "src"), "blob:") || attr(media, "data-video-id") != "") {
+			count++
+			return
+		}
+		for _, attr := range node.Attr {
+			if videoURLRE.MatchString(attr.Val) {
+				count++
+				return
+			}
+		}
+	})
+	return count
 }
 
 func removableEmbedCount(s *goquery.Selection) int {
@@ -966,6 +1647,16 @@ func headerDuplicatesTitle(header *goquery.Selection, title string) bool {
 	if strings.HasSuffix(headerText, ":") && strings.Contains(title, strings.TrimSuffix(headerText, ":")) {
 		return true
 	}
+	for _, sep := range []string{" - ", " | ", " — ", " – "} {
+		if strings.HasPrefix(title, headerText+sep) {
+			return true
+		}
+	}
+	for _, sep := range []string{"_", " - ", " | ", " — ", " – "} {
+		if strings.HasPrefix(title, headerText+sep) {
+			return true
+		}
+	}
 	if titlePrefix, titleSuffix, ok := strings.Cut(title, ":"); ok {
 		headerPrefix, headerSuffix, headerHasColon := strings.Cut(headerText, ":")
 		if headerHasColon && strings.TrimSpace(headerSuffix) != "" && textSimilarity(titlePrefix, headerPrefix) > 0.75 &&
@@ -973,7 +1664,25 @@ func headerDuplicatesTitle(header *goquery.Selection, title string) bool {
 			return false
 		}
 	}
+	if shortTitleSubsetHeader(header, title) {
+		return true
+	}
 	return headerText == title || textSimilarity(headerText, title) > 0.75
+}
+
+func shortTitleSubsetHeader(header *goquery.Selection, title string) bool {
+	headerText := normalizeSpace(header.Text())
+	return len([]rune(headerText)) <= 45 && textContainsAllTokens(title, headerText)
+}
+
+func textContainsAllTokens(text, subtext string) bool {
+	textTokens := tokenSet(text)
+	for _, token := range strings.Fields(tokenizeText(subtext)) {
+		if !textTokens[token] {
+			return false
+		}
+	}
+	return len(textTokens) > 0
 }
 
 func isSkipLinkNode(s *goquery.Selection) bool {
@@ -1085,12 +1794,12 @@ func nextNodeSkippingWhitespace(node *xhtml.Node) *xhtml.Node {
 func wrapPhrasingContentInParagraphs(node *xhtml.Node) {
 	for child := node.FirstChild; child != nil; {
 		nextSibling := child.NextSibling
-		if !isPhrasingNode(child) {
+		if !isParagraphPhrasingNode(child) {
 			child = nextSibling
 			continue
 		}
 		var fragment []*xhtml.Node
-		for child != nil && isPhrasingNode(child) {
+		for child != nil && isParagraphPhrasingNode(child) {
 			nextSibling = child.NextSibling
 			node.RemoveChild(child)
 			fragment = append(fragment, child)
@@ -1163,6 +1872,13 @@ func isPhrasingNode(node *xhtml.Node) bool {
 	return phrasingElement[tagNameNode(node)]
 }
 
+func isParagraphPhrasingNode(node *xhtml.Node) bool {
+	if node.Type == xhtml.ElementNode && blockElement[tagNameNode(node)] {
+		return false
+	}
+	return isPhrasingNode(node)
+}
+
 func simplifyNestedElements(root *goquery.Selection) {
 	for changed := true; changed; {
 		changed = false
@@ -1177,6 +1893,13 @@ func simplifyNestedElements(root *goquery.Selection) {
 				return false
 			}
 			child := firstElementChild(node)
+			if (nodeAttr(node, "id") == "content" || nodeAttr(node, "id") == "content-main") && child != nil &&
+				(tagNameNode(child) == "article" || selectionForNode(child).Find("article").Length() > 0) {
+				return true
+			}
+			if node.Parent != nil && (nodeAttr(node.Parent, "id") == "content" || nodeAttr(node.Parent, "id") == "content-main") && tagNameNode(child) == "article" {
+				return true
+			}
 			if child != nil && nextElementSibling(child) == nil && (tagNameNode(child) == "div" || tagNameNode(child) == "section") {
 				mergeMissingAttributes(child, node)
 				replaceNode(node, child)
@@ -1202,12 +1925,36 @@ func unwrapSingleCellTables(root *goquery.Selection) {
 		if cell == nil {
 			return
 		}
-		for _, child := range childNodes(cell) {
-			cell.RemoveChild(child)
-			table.Parent.InsertBefore(child, table)
+		children := childNodes(cell)
+		if isParagraphPhrasingFragment(children) {
+			p := &xhtml.Node{Type: xhtml.ElementNode, Data: "p"}
+			for _, child := range children {
+				cell.RemoveChild(child)
+				p.AppendChild(child)
+			}
+			table.Parent.InsertBefore(p, table)
+		} else {
+			for _, child := range children {
+				cell.RemoveChild(child)
+				table.Parent.InsertBefore(child, table)
+			}
 		}
 		removeNode(table)
 	})
+}
+
+func isParagraphPhrasingFragment(nodes []*xhtml.Node) bool {
+	hasContent := false
+	for _, node := range nodes {
+		if isIgnorablePhrasingBoundaryNode(node) {
+			continue
+		}
+		if !isParagraphPhrasingNode(node) {
+			return false
+		}
+		hasContent = true
+	}
+	return hasContent
 }
 
 func mergeMissingAttributes(dst, src *xhtml.Node) {
@@ -1350,6 +2097,18 @@ func hasAncestorNodeTag(node *xhtml.Node, tag string) bool {
 func hasAncestorNodeID(node *xhtml.Node, id string) bool {
 	for current := node.Parent; current != nil; current = current.Parent {
 		if current.Type == xhtml.ElementNode && nodeAttr(current, "id") == id {
+			return true
+		}
+	}
+	return false
+}
+
+func hasAncestorNodeAttr(node *xhtml.Node, key, value string) bool {
+	for current := node.Parent; current != nil; current = current.Parent {
+		if current.Type != xhtml.ElementNode {
+			continue
+		}
+		if nodeAttr(current, key) == value {
 			return true
 		}
 	}
@@ -1566,9 +2325,10 @@ var blockElement = map[string]bool{
 	"fieldset": true, "figcaption": true, "figure": true, "footer": true,
 	"form": true, "h1": true, "h2": true, "h3": true, "h4": true,
 	"h5": true, "h6": true, "header": true, "hr": true, "li": true,
-	"main": true, "nav": true, "noscript": true, "ol": true, "p": true,
-	"pre": true, "section": true, "table": true, "tfoot": true, "ul": true,
-	"video": true,
+	"main": true, "nav": true, "noscript": true, "ol": true, "p": true, "picture": true,
+	"pre": true, "section": true, "table": true, "tbody": true, "td": true, "tfoot": true,
+	"th": true, "thead": true, "tr": true, "ul": true,
+	"svg": true, "video": true,
 }
 
 var presentationalAttribute = map[string]bool{
@@ -1629,9 +2389,15 @@ func resolveDocumentURLs(doc *goquery.Document, pageURL string) {
 			if strings.HasPrefix(raw, "#") && !hasBase {
 				return
 			}
+			if spec.attr == "src" && strings.HasPrefix(raw, "//") && tagNameNode(s.Get(0)) == "iframe" {
+				return
+			}
 			parsed, err := url.Parse(raw)
 			if err != nil {
-				return
+				if unescaped, unescapeErr := url.PathUnescape(raw); unescapeErr == nil {
+					raw = unescaped
+				}
+				parsed = &url.URL{Path: raw}
 			}
 			if parsed.Scheme != "" && parsed.Host != "" && parsed.Path == "" {
 				parsed.Path = "/"
@@ -2086,6 +2852,38 @@ func firstSourceByline(data []byte, parsedByline string) string {
 func isBylineCandidate(s *goquery.Selection) bool {
 	classID := strings.ToLower(attr(s, "class") + " " + attr(s, "id") + " " + attr(s, "rel") + " " + attr(s, "itemprop"))
 	return strings.Contains(classID, "byline") || strings.Contains(classID, "author")
+}
+
+func isRelatedReadingBlock(s *goquery.Selection) bool {
+	classID := strings.ToLower(strings.ReplaceAll(attr(s, "class")+" "+attr(s, "id"), "-", ""))
+	return strings.Contains(classID, "relatedcontent") ||
+		strings.EqualFold(normalizeSpace(s.Text()), "Other People Are Reading")
+}
+
+func isAuthorBioSection(s *goquery.Selection) bool {
+	for current := s; current.Length() > 0; current = current.Parent() {
+		classID := strings.ToLower(attr(current, "class") + " " + attr(current, "id") + " " + attr(current, "itemprop"))
+		if strings.Contains(classID, "author") && strings.Contains(strings.ToLower(normalizeSpace(current.Text())), "about the author") {
+			return true
+		}
+	}
+	return false
+}
+
+func isAuthorSemanticNode(s *goquery.Selection) bool {
+	classID := strings.ToLower(" " + attr(s, "rel") + " " + attr(s, "itemprop") + " ")
+	return strings.Contains(classID, " author ") || strings.Contains(classID, " creator ")
+}
+
+func isInlineAuthorsAttribution(s *goquery.Selection) bool {
+	for current := s; current.Length() > 0; current = current.Parent() {
+		classID := strings.ToLower(" " + attr(current, "class") + " ")
+		text := normalizeSpace(current.Text())
+		if strings.Contains(classID, " authors ") && current.Find("time").Length() == 0 && !strings.HasPrefix(text, "Par ") {
+			return true
+		}
+	}
+	return false
 }
 
 func isBylineText(text string) bool {

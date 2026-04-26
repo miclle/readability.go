@@ -105,6 +105,8 @@ func normalizeFixtureHTML(value string) string {
 	value = normalizeSpace(value)
 	value = strings.ReplaceAll(value, "> <", "><")
 	value = strings.ReplaceAll(value, " />", "/>")
+	value = strings.ReplaceAll(value, " </p>", "</p>")
+	value = strings.ReplaceAll(value, " </li>", "</li>")
 	value = strings.ReplaceAll(value, "<tbody>", "")
 	value = strings.ReplaceAll(value, "</tbody>", "")
 	return strings.TrimSpace(value)
