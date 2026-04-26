@@ -48,10 +48,14 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v5
 
+      # staticcheck@latest tracks the current Go release and refuses to
+      # install on the older toolchain pinned by go.mod (1.24). Use the
+      # latest stable line for this job only; the analysis itself is
+      # toolchain-independent.
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
-          go-version-file: go.mod
+          go-version: '1.26.x'
           cache-dependency-path: go.sum
 
       # Run honnef.co/go/tools/cmd/staticcheck against the whole module.
