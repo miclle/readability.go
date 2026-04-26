@@ -53,6 +53,29 @@ func TestFirstSourceBylineSkipsFooterAuthors(t *testing.T) {
 	}
 }
 
+func TestFirstSourceBylineSkipsProfileWidgets(t *testing.T) {
+	data := []byte(`<html><body>
+		<article><p>Useful article text with enough context to stand on its own.</p></article>
+		<div class="widget Profile"><a rel="author" class="profile-name-link">Sidebar Author</a></div>
+	</body></html>`)
+
+	if byline := firstSourceByline(data, ""); byline != "" {
+		t.Fatalf("byline = %q", byline)
+	}
+}
+
+func TestFirstSourceBylineKeepsArticleAuthorProfileInfo(t *testing.T) {
+	data := []byte(`<html><body>
+		<div class="authorInfo" section="author">
+			<div class="profileInfo"><a rel="author"><span itemprop="name">Article Author</span></a></div>
+		</div>
+	</body></html>`)
+
+	if byline := firstSourceByline(data, ""); byline != "Article Author" {
+		t.Fatalf("byline = %q", byline)
+	}
+}
+
 func TestSelectionInnerHTMLPreservesTextQuotes(t *testing.T) {
 	doc := mustTestDocument(t, `<div id="root"><p title="'quoted'">You're "ready"</p></div>`)
 

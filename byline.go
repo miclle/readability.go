@@ -132,7 +132,7 @@ func firstValidSourceByline(doc *goquery.Document) string {
 }
 
 func validSourceByline(s *goquery.Selection, matchString string) bool {
-	if isFooterBylineContext(s) {
+	if isFooterBylineContext(s) || isProfileWidgetBylineContext(s) {
 		return false
 	}
 	textLength := len([]rune(strings.TrimSpace(s.Text())))
@@ -154,8 +154,23 @@ func isFooterBylineContext(s *goquery.Selection) bool {
 		classID := strings.ToLower(attr(current, "class") + " " + attr(current, "id"))
 		if tag == "footer" ||
 			strings.Contains(classID, "footer") ||
-			strings.Contains(classID, "comment") ||
-			strings.Contains(classID, "profile") {
+			strings.Contains(classID, "comment") {
+			return true
+		}
+	}
+	return false
+}
+
+func isProfileWidgetBylineContext(s *goquery.Selection) bool {
+	for current := s; current.Length() > 0; current = current.Parent() {
+		classID := strings.ToLower(attr(current, "class") + " " + attr(current, "id"))
+		if strings.Contains(classID, "authorinfo") || attr(current, "section") == "author" {
+			return false
+		}
+		if strings.Contains(classID, "widget") && strings.Contains(classID, "profile") {
+			return true
+		}
+		if strings.Contains(classID, "sidebar") && strings.Contains(classID, "profile") {
 			return true
 		}
 	}
