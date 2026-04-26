@@ -8,6 +8,19 @@ import (
 )
 
 func cleanArticleCandidate(article *goquery.Selection) {
+	removeDisallowedArticleElements(article)
+	applyEarlyCompatibilityCleanups(article)
+	cleanEmbeddedMedia(article)
+	removeArticleNoiseBlocks(article)
+	normalizeArticleMarkup(article)
+	applyConditionalCleanups(article)
+	applyLateCompatibilityCleanups(article)
+	removeUnlikelyArticleElements(article)
+	removeEmptyParagraphs(article)
+	finalizeArticleStructure(article)
+}
+
+func removeDisallowedArticleElements(article *goquery.Selection) {
 	article.Find("form, fieldset, aside, footer, menu, script, style, noscript, input, textarea, select, button, link").Remove()
 	article.Find("#respond").Remove()
 	article.Find("nav").FilterFunction(func(_ int, s *goquery.Selection) bool {
@@ -15,12 +28,18 @@ func cleanArticleCandidate(article *goquery.Selection) {
 			attr(s, "role") != "tablist" && s.Find(`[role="tablist"]`).Length() == 0
 	}).Remove()
 	article.Find("object, embed").Remove()
+}
+
+func applyEarlyCompatibilityCleanups(article *goquery.Selection) {
 	removeKinjaLightboxControls(article)
 	normalizeFallbackContentContainers(article)
 	normalizeEntryHeaders(article)
 	wrapAttachmentImageLinks(article)
 	restoreStoryContinueLinks(article)
 	replaceJavascriptLinks(article)
+}
+
+func cleanEmbeddedMedia(article *goquery.Selection) {
 	article.Find("iframe").Each(func(_ int, s *goquery.Selection) {
 		src := attr(s, "src")
 		if !videoURLRE.MatchString(src) {
@@ -32,6 +51,9 @@ func cleanArticleCandidate(article *goquery.Selection) {
 			s.Remove()
 		}
 	})
+}
+
+func removeArticleNoiseBlocks(article *goquery.Selection) {
 	article.Find("*").Each(func(_ int, s *goquery.Selection) {
 		if isRelatedReadingBlock(s) {
 			s.Remove()
@@ -80,6 +102,9 @@ func cleanArticleCandidate(article *goquery.Selection) {
 	})
 	removePlainBylineParagraphs(article)
 	removeLeadingMetadataBlocks(article)
+}
+
+func normalizeArticleMarkup(article *goquery.Selection) {
 	article.Find("h1").Each(func(_ int, s *goquery.Selection) {
 		if node := s.Get(0); node != nil {
 			node.Data = "h2"
@@ -102,10 +127,16 @@ func cleanArticleCandidate(article *goquery.Selection) {
 	unwrapSingleCellTables(article)
 	fixLazyImages(article)
 	removeUnusedSVGSymbols(article)
+}
+
+func applyConditionalCleanups(article *goquery.Selection) {
 	cleanConditionally(article, "form")
 	cleanConditionally(article, "fieldset")
 	cleanConditionally(article, "ul")
 	cleanConditionally(article, "div")
+}
+
+func applyLateCompatibilityCleanups(article *goquery.Selection) {
 	normalizeVideoPlayerContainers(article)
 	normalizeSmartAssetContainers(article)
 	convertTextOnlyDivsToParagraphs(article)
@@ -113,6 +144,9 @@ func cleanArticleCandidate(article *goquery.Selection) {
 	unwrapSingleParagraphContainers(article)
 	removeEmptyMediaHeadings(article)
 	restoreStoryContinueLinks(article)
+}
+
+func removeUnlikelyArticleElements(article *goquery.Selection) {
 	article.Find("*").Each(func(_ int, s *goquery.Selection) {
 		classID := strings.ToLower(attr(s, "class") + " " + attr(s, "id"))
 		if attr(s, "role") == "note" {
@@ -139,11 +173,17 @@ func cleanArticleCandidate(article *goquery.Selection) {
 		cleanPresentationAttributes(s.Get(0))
 	})
 	cleanPresentationAttributes(article.Get(0))
+}
+
+func removeEmptyParagraphs(article *goquery.Selection) {
 	article.Find("p").Each(func(_ int, s *goquery.Selection) {
 		if normalizeSpace(s.Text()) == "" && s.Find("img, picture, video, audio, embed, object, iframe, svg, math").Length() == 0 {
 			s.Remove()
 		}
 	})
+}
+
+func finalizeArticleStructure(article *goquery.Selection) {
 	removeMediaSectionHeadings(article)
 	removeCompatibilityHorizontalRules(article)
 	removeBoundaryHorizontalRules(article.Get(0))
