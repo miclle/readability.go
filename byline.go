@@ -9,12 +9,21 @@ import (
 	"github.com/PuerkitoBio/goquery"
 )
 
+// firstSourceByline parses the raw HTML bytes and delegates to the Doc-form
+// helper. Retained as a convenience for tests; production callers use
+// firstSourceBylineDoc against the already-parsed document.
 func firstSourceByline(data []byte, parsedByline string) string {
 	doc, err := goquery.NewDocumentFromReader(bytes.NewReader(data))
 	if err != nil {
 		return ""
 	}
+	return firstSourceBylineDoc(doc, parsedByline)
+}
 
+func firstSourceBylineDoc(doc *goquery.Document, parsedByline string) string {
+	if doc == nil {
+		return ""
+	}
 	parsed := normalizeSpace(parsedByline)
 	if parsed == "" {
 		if byline := structuredSourceByline(doc); byline != "" {

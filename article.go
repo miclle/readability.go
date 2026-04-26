@@ -124,11 +124,16 @@ func FromReader(r io.Reader, pageURL string, options *Options) (Article, error) 
 		return Article{}, ErrTooManyElements
 	}
 
-	metadata := extractMetadataConfig(data, cfg)
+	metadata := extractMetadataConfigDoc(doc, cfg)
 	title := fallbackTitle(doc)
 	if metadata.Title != "" {
 		title = metadata.Title
 	}
+
+	// Capture byline candidates from the pristine document before
+	// extractArticleContent removes byline-bearing nodes during cleanup.
+	pristineSourceByline := firstSourceBylineDoc(doc, metadata.Byline)
+
 	content := extractArticleContent(doc, pageURL, title, cfg)
 	rawTextContent := strings.TrimSpace(content.Text())
 	if options != nil && options.CharThreshold > 0 && len([]rune(rawTextContent)) < options.CharThreshold {
@@ -147,12 +152,9 @@ func FromReader(r io.Reader, pageURL string, options *Options) (Article, error) 
 		excerpt = sourceExcerpt
 	}
 
-	byline := ""
-	if metadata.Byline != "" {
-		byline = metadata.Byline
-	}
-	if sourceByline := firstSourceByline(data, byline); sourceByline != "" {
-		byline = sourceByline
+	byline := metadata.Byline
+	if pristineSourceByline != "" {
+		byline = pristineSourceByline
 	}
 
 	htmlContent, err := selectionInnerHTMLWithNBSP(content, nbspEntity)

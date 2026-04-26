@@ -112,7 +112,8 @@ type metadata struct {
 }
 
 // extractMetadata is preserved for tests; production callers should use
-// extractMetadataConfig so options like DisableJSONLD are honored.
+// extractMetadataConfigDoc so options like DisableJSONLD are honored without
+// reparsing the HTML stream.
 func extractMetadata(data []byte) metadata {
 	return extractMetadataConfig(data, defaultParserConfig())
 }
@@ -120,6 +121,13 @@ func extractMetadata(data []byte) metadata {
 func extractMetadataConfig(data []byte, cfg parserConfig) metadata {
 	doc, err := goquery.NewDocumentFromReader(bytes.NewReader(data))
 	if err != nil {
+		return metadata{}
+	}
+	return extractMetadataConfigDoc(doc, cfg)
+}
+
+func extractMetadataConfigDoc(doc *goquery.Document, cfg parserConfig) metadata {
+	if doc == nil {
 		return metadata{}
 	}
 	var result metadata
