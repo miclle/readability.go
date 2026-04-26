@@ -396,6 +396,9 @@ func applyParselyMetadata(values map[string]string, result *metadata) {
 func normalizeMetaKey(key string) string {
 	key = strings.ToLower(strings.TrimSpace(key))
 	key = strings.ReplaceAll(key, ".", ":")
+	if strings.HasPrefix(key, "article:") {
+		return ""
+	}
 	return key
 }
 

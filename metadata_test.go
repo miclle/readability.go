@@ -158,6 +158,16 @@ func TestArticleAuthorNameIsUsed(t *testing.T) {
 	}
 }
 
+func TestArticleAuthorNameMetaIsIgnored(t *testing.T) {
+	result := extractMetadata([]byte(`<html><head>
+		<meta name="article:author" content="Jane Doe">
+	</head></html>`))
+
+	if result.Byline != "" {
+		t.Fatalf("Byline = %q", result.Byline)
+	}
+}
+
 func TestDCTermsDatesDoNotSetPublishedTime(t *testing.T) {
 	result := extractMetadata([]byte(`<html><head>
 		<meta name="dcterms.created" content="2015-04-16T20:02:01Z">
