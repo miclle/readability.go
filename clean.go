@@ -97,6 +97,10 @@ func removeArticleNoiseBlocks(article *goquery.Selection) {
 			s.Remove()
 			return
 		}
+		if isLoadingOrControlPlaceholderBlock(s) {
+			s.Remove()
+			return
+		}
 		if isBylineCandidate(s) && len([]rune(normalizeSpace(s.Text()))) < 200 &&
 			!isInsideCollectionHighlights(s) && !hasAncestorNodeID(s.Get(0), "site-content") {
 			if hasAncestorNodeID(s.Get(0), "comments") {
@@ -136,6 +140,14 @@ func removeArticleNoiseBlocks(article *goquery.Selection) {
 	})
 	removePlainBylineParagraphs(article)
 	removeLeadingMetadataBlocks(article)
+}
+
+func isLoadingOrControlPlaceholderBlock(s *goquery.Selection) bool {
+	if s.Find("img, picture, video, audio, embed, object, iframe, svg, math").Length() > 0 {
+		return false
+	}
+	text := normalizeSpace(s.Text())
+	return isLoadingPlaceholderText(text)
 }
 
 func normalizeArticleMarkup(article *goquery.Selection) {
@@ -194,7 +206,7 @@ func removeUnlikelyArticleElements(article *goquery.Selection) {
 		text := innerText(s)
 		if strings.Contains(classID, "like-post-wrapper") ||
 			(len([]rune(text)) < 200 && strings.Contains(strings.ToLower(text), "like this:") && strings.Contains(strings.ToLower(text), "loading")) ||
-			loadingWordsRE.MatchString(text) {
+			isLoadingPlaceholderText(text) {
 			s.Remove()
 			return
 		}

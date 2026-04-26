@@ -194,6 +194,36 @@ func TestExpandedBylineActivityUsesSemanticActivityValue(t *testing.T) {
 	}
 }
 
+func TestLoadingPlaceholderAllowsControlGlyphs(t *testing.T) {
+	for _, text := range []string{"loading...< >", "正在加载...< >", "chargement…[]"} {
+		if !isLoadingPlaceholderText(text) {
+			t.Fatalf("expected loading placeholder: %q", text)
+		}
+	}
+	if isLoadingPlaceholderText("loading the article body") {
+		t.Fatal("article text should not be treated as a loading placeholder")
+	}
+
+	doc := mustTestDocument(t, `<div><p id="loading">正在加载...</p><p id="controls">&lt; &gt;</p><p id="story">Article body.</p></div>`)
+	if !isLoadingOrControlPlaceholderBlock(doc.Find("#loading")) {
+		t.Fatal("loading block should be removable")
+	}
+	if isLoadingOrControlPlaceholderBlock(doc.Find("#controls")) {
+		t.Fatal("standalone controls should stay outside media-specific cleanup")
+	}
+	if isLoadingOrControlPlaceholderBlock(doc.Find("#story")) {
+		t.Fatal("story text should not be removable")
+	}
+}
+
+func TestImageBackedPlayerContainerIsMedia(t *testing.T) {
+	doc := mustTestDocument(t, `<div id="rv-player"><img src="data:image/png;base64,abc"></div>`)
+
+	if !isMediaPlayerContainer(doc.Find("#rv-player")) {
+		t.Fatal("image-backed player should be treated as media")
+	}
+}
+
 func TestCollectionHighlightsDetectionUsesClassAndIDMeaning(t *testing.T) {
 	doc := mustTestDocument(t, `<section id="feature-collection" class="story-highlights"><p id="item">Story</p></section>`)
 

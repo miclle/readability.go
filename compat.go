@@ -347,7 +347,7 @@ func isMediaPlayerContainer(s *goquery.Selection) bool {
 	if !strings.Contains(classID, "player") {
 		return false
 	}
-	return s.Find("iframe, video, embed, object").Length() > 0
+	return s.Find("iframe, video, embed, object, img").Length() > 0
 }
 
 func isControlPlaceholderText(text string) bool {
@@ -360,6 +360,23 @@ func isControlPlaceholderText(text string) bool {
 		}
 	}
 	return true
+}
+
+func isLoadingPlaceholderText(text string) bool {
+	if loadingWordsRE.MatchString(text) {
+		return true
+	}
+	lower := strings.ToLower(text)
+	for _, marker := range []string{"loading", "正在加载", "Загрузка", "chargement", "cargando"} {
+		if !strings.HasPrefix(lower, strings.ToLower(marker)) {
+			continue
+		}
+		rest := strings.TrimSpace(text[len(marker):])
+		rest = strings.TrimLeft(rest, ".…")
+		rest = strings.TrimSpace(rest)
+		return rest == "" || isControlPlaceholderText(rest)
+	}
+	return false
 }
 
 func isCollectionCardSummary(s *goquery.Selection) bool {
