@@ -133,8 +133,23 @@ func TestSelectionInnerHTMLPreservesTextQuotes(t *testing.T) {
 	if !strings.Contains(html, `You're&nbsp;"ready"`) {
 		t.Fatalf("text quotes were escaped: %q", html)
 	}
-	if !strings.Contains(html, `title="&#39;quoted&#39;"`) {
+	if !strings.Contains(html, `title="&apos;quoted&apos;"`) {
 		t.Fatalf("attribute quotes were not escaped safely: %q", html)
+	}
+}
+
+func TestSelectionInnerHTMLNormalizesAttributeQuoteEntities(t *testing.T) {
+	doc := mustTestDocument(t, `<div id="root"><img alt="Photo by &quot;Jane&quot;" data-x="'single'"></div>`)
+
+	html, err := selectionInnerHTML(doc.Find("#root"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(html, `alt="Photo by &quot;Jane&quot;"`) {
+		t.Fatalf("double quotes were not normalized in attributes: %q", html)
+	}
+	if !strings.Contains(html, `data-x="&apos;single&apos;"`) {
+		t.Fatalf("single quotes were not normalized in attributes: %q", html)
 	}
 }
 

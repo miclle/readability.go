@@ -363,7 +363,7 @@ func normalizeSerializedTextEntities(value, nbspEntity string) string {
 			}
 		case '>':
 			if inTag {
-				out.WriteString(value[start : i+1])
+				out.WriteString(normalizeAttributeQuoteEntities(value[start : i+1]))
 				start = i + 1
 				inTag = false
 			}
@@ -372,12 +372,18 @@ func normalizeSerializedTextEntities(value, nbspEntity string) string {
 	if start < len(value) {
 		rest := value[start:]
 		if inTag {
-			out.WriteString(rest)
+			out.WriteString(normalizeAttributeQuoteEntities(rest))
 		} else {
 			out.WriteString(unescapeQuoteEntities(rest, nbspEntity))
 		}
 	}
 	return out.String()
+}
+
+func normalizeAttributeQuoteEntities(value string) string {
+	value = strings.ReplaceAll(value, "&#39;", "&apos;")
+	value = strings.ReplaceAll(value, "&#34;", "&quot;")
+	return value
 }
 
 func unescapeQuoteEntities(value, nbspEntity string) string {
