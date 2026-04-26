@@ -158,6 +158,27 @@ func TestArticleAuthorNameIsUsed(t *testing.T) {
 	}
 }
 
+func TestDCTermsDatesDoNotSetPublishedTime(t *testing.T) {
+	result := extractMetadata([]byte(`<html><head>
+		<meta name="dcterms.created" content="2015-04-16T20:02:01Z">
+		<meta name="dcterms.issued" content="2015-04-16T20:02:01Z">
+	</head></html>`))
+
+	if result.PublishedTime != "" {
+		t.Fatalf("PublishedTime = %q", result.PublishedTime)
+	}
+}
+
+func TestParselyPagePubDateDoesNotSetPublishedTime(t *testing.T) {
+	result := extractMetadata([]byte(`<html><head>
+		<meta name="parsely-page" content="{&quot;pub_date&quot;:&quot;2015-04-16T20:02:01Z&quot;}">
+	</head></html>`))
+
+	if result.PublishedTime != "" {
+		t.Fatalf("PublishedTime = %q", result.PublishedTime)
+	}
+}
+
 func TestSpacedMetadataPropertyIsParsed(t *testing.T) {
 	result := extractMetadata([]byte(`<html><head>
 		<meta property="dc : title" content="Spaced Title">

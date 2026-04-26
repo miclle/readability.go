@@ -390,7 +390,6 @@ func applyParselyMetadata(values map[string]string, result *metadata) {
 		result.Title = firstNonEmptyString(result.Title, firstString(parsed["title"]))
 		result.Byline = firstNonEmptyString(result.Byline, firstString(parsed["author"]))
 		result.Excerpt = firstNonEmptyString(result.Excerpt, firstString(parsed["lower_deck"]))
-		result.PublishedTime = firstNonEmptyString(result.PublishedTime, firstString(parsed["pub_date"]))
 	}
 }
 
