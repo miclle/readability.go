@@ -262,6 +262,18 @@ func TestFirstExcerptTextSkipsTableText(t *testing.T) {
 	}
 }
 
+func TestFirstExcerptTextUsesFirstShortParagraph(t *testing.T) {
+	doc := mustTestDocument(t, `<article>
+		<p>Contents</p>
+		<p>Once you have mastered the art of mutable history in a single repository, you can move up to the next level.</p>
+	</article>`)
+
+	got := firstExcerptText(doc.Find("article"), "Evolve")
+	if got != "Contents" {
+		t.Fatalf("excerpt = %q", got)
+	}
+}
+
 func TestUnwrapSingleCellTablesWrapsPhrasingContent(t *testing.T) {
 	doc := mustTestDocument(t, `<article><table><tr><td>Lead <em>text</em></td></tr></table></article>`)
 	article := doc.Find("article").First()

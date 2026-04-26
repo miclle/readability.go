@@ -11,7 +11,6 @@ import (
 
 func firstExcerptText(s *goquery.Selection, title string) string {
 	var excerpt string
-	var shortExcerpt string
 	normalizedTitle := normalizeSpace(title)
 	s.Find("p, div").EachWithBreak(func(_ int, block *goquery.Selection) bool {
 		if block.Find("p, div").Length() > 0 {
@@ -24,10 +23,8 @@ func firstExcerptText(s *goquery.Selection, title string) string {
 			return true
 		}
 		text := strings.TrimSpace(block.Text())
-		fromBreaks := false
 		if brExcerpt := excerptBeforeBreak(block); brExcerpt != "" {
 			text = brExcerpt
-			fromBreaks = true
 		}
 		if text == "" {
 			return true
@@ -45,18 +42,9 @@ func firstExcerptText(s *goquery.Selection, title string) string {
 		if linkText != "" && normalizedText == linkText {
 			return true
 		}
-		if !fromBreaks && len([]rune(normalizedText)) < 25 {
-			if shortExcerpt == "" {
-				shortExcerpt = text
-			}
-			return true
-		}
 		excerpt = text
 		return false
 	})
-	if excerpt == "" {
-		excerpt = shortExcerpt
-	}
 	return excerpt
 }
 
