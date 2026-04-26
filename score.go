@@ -236,6 +236,9 @@ func buildArticleContent(top *xhtml.Node, scores map[*xhtml.Node]float64, topSco
 		Data: "div",
 		Attr: []xhtml.Attribute{{Key: "id", Val: "readability-content"}},
 	}
+	if dir := directionForCandidate(top); dir != "" {
+		setNodeAttr(wrapper, "dir", dir)
+	}
 	if tagNameNode(top) == "body" {
 		for _, child := range childNodes(top) {
 			appendNode(wrapper, child)
@@ -284,6 +287,33 @@ func buildArticleContent(top *xhtml.Node, scores map[*xhtml.Node]float64, topSco
 		}
 	}
 	return goquery.NewDocumentFromNode(wrapper).Selection
+}
+
+func directionForCandidate(top *xhtml.Node) string {
+	if top == nil {
+		return ""
+	}
+	if tagNameNode(top) == "body" {
+		for node := top; node != nil; node = node.Parent {
+			if dir := nodeAttr(node, "dir"); dir != "" {
+				return dir
+			}
+		}
+		return ""
+	}
+	parent := top.Parent
+	if dir := nodeAttr(parent, "dir"); dir != "" {
+		return dir
+	}
+	if dir := nodeAttr(top, "dir"); dir != "" {
+		return dir
+	}
+	for node := parent; node != nil; node = node.Parent {
+		if dir := nodeAttr(node, "dir"); dir != "" {
+			return dir
+		}
+	}
+	return ""
 }
 
 func hasDataLoadPlaylistSibling(node *xhtml.Node) bool {

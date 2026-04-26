@@ -54,9 +54,11 @@ func FromReader(r io.Reader, pageURL string, options *Options) (Article, error) 
 	excerpt := firstExcerptText(content, title)
 	if metadata.Excerpt != "" {
 		excerpt = metadata.Excerpt
+	} else if excerpt != "" {
+		if sourceExcerpt := firstSourceExcerpt(data, excerpt); sourceExcerpt != "" {
+			excerpt = sourceExcerpt
+		}
 	} else if sourceExcerpt := firstStructuredSourceExcerpt(data, title); sourceExcerpt != "" {
-		excerpt = sourceExcerpt
-	} else if sourceExcerpt := firstSourceExcerpt(data, excerpt); sourceExcerpt != "" {
 		excerpt = sourceExcerpt
 	}
 
@@ -100,5 +102,5 @@ func articleDirection(content *goquery.Selection) string {
 	if dir := attr(content, "dir"); dir != "" {
 		return dir
 	}
-	return attr(content.Find("[dir]").First(), "dir")
+	return ""
 }
