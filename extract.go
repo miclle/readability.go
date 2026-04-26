@@ -98,13 +98,40 @@ func cloneDocument(doc *goquery.Document) *goquery.Document {
 	if doc == nil {
 		return &goquery.Document{}
 	}
-	html, err := doc.Html()
-	if err != nil {
+	root := doc.Get(0)
+	if root == nil {
 		return &goquery.Document{}
 	}
-	clone, err := goquery.NewDocumentFromReader(strings.NewReader(html))
-	if err != nil {
-		return &goquery.Document{}
+	return goquery.NewDocumentFromNode(cloneNode(root))
+}
+
+// cloneNode returns a deep copy of n, including its descendants. Parent and
+// sibling pointers on the returned root are nil; descendants are linked
+// internally so they form an independent tree from the source.
+func cloneNode(n *xhtml.Node) *xhtml.Node {
+	if n == nil {
+		return nil
+	}
+	clone := &xhtml.Node{
+		Type:      n.Type,
+		DataAtom:  n.DataAtom,
+		Data:      n.Data,
+		Namespace: n.Namespace,
+	}
+	if len(n.Attr) > 0 {
+		clone.Attr = make([]xhtml.Attribute, len(n.Attr))
+		copy(clone.Attr, n.Attr)
+	}
+	for child := n.FirstChild; child != nil; child = child.NextSibling {
+		childClone := cloneNode(child)
+		childClone.Parent = clone
+		if clone.FirstChild == nil {
+			clone.FirstChild = childClone
+		} else {
+			clone.LastChild.NextSibling = childClone
+			childClone.PrevSibling = clone.LastChild
+		}
+		clone.LastChild = childClone
 	}
 	return clone
 }
