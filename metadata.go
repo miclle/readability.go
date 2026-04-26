@@ -404,8 +404,6 @@ func normalizeMetaKey(key string) string {
 
 func bylineFromJSONLD(value any) string {
 	switch typed := value.(type) {
-	case string:
-		return strings.TrimSpace(typed)
 	case map[string]any:
 		return nestedString(typed, "name")
 	case []any:

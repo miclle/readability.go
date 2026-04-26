@@ -224,6 +224,18 @@ func TestMetadataFromJSONLDRecognizesArticleSubtypes(t *testing.T) {
 	}
 }
 
+func TestMetadataFromJSONLDIgnoresStringAuthor(t *testing.T) {
+	result := metadataFromJSONLD(map[string]any{
+		"@type":    "SocialMediaPosting",
+		"headline": "Post title",
+		"author":   "blog-name",
+	})
+
+	if result.Byline != "" {
+		t.Fatalf("Byline = %q", result.Byline)
+	}
+}
+
 func TestHiddenImageRequiresFallbackImageClass(t *testing.T) {
 	hidden := mustTestDocument(t, `<img aria-hidden="true" src="photo.jpg">`).Find("img").First()
 	if !isHidden(hidden) {
