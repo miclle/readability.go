@@ -195,8 +195,8 @@ func prepareArticleScoring(doc *goquery.Document, title string, options articleS
 }
 
 func betterAncestorCandidate(top *xhtml.Node, scores map[*xhtml.Node]float64, topScore float64) (*xhtml.Node, float64) {
-	if parent := top.Parent; parent != nil && nodeAttr(parent, "id") == "posts" && linkDensity(selectionForNode(parent)) < 0.25 {
-		return parent, math.Max(topScore, scores[parent])
+	if node, score, ok := compatPostsAncestor(top, scores, topScore); ok {
+		return node, score
 	}
 	parent := top.Parent
 	lastScore := topScore
@@ -225,12 +225,8 @@ func betterAncestorCandidate(top *xhtml.Node, scores map[*xhtml.Node]float64, to
 			topScore = lastScore
 		}
 	}
-	if tagNameNode(top) == "article" && top.Parent != nil && nodeAttr(top.Parent, "id") == "content-main" {
-		top = top.Parent
-		topScore = scores[top]
-		if topScore == 0 {
-			topScore = lastScore
-		}
+	if node, score, ok := compatContentMainArticleAncestor(top, scores, lastScore); ok {
+		return node, score
 	}
 	return top, topScore
 }

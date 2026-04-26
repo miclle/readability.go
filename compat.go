@@ -1,11 +1,80 @@
 package readability
 
 import (
+	"math"
 	"strings"
 
 	"github.com/PuerkitoBio/goquery"
 	xhtml "golang.org/x/net/html"
 )
+
+// compatMediaWikiExcerpt returns the first non-noise lead paragraph from a
+// MediaWiki-rendered document, falling back to coordinates infobox text. This
+// matches upstream Readability's heuristic for Wikipedia-style fixtures.
+func compatMediaWikiExcerpt(doc *goquery.Document) string {
+	if doc.Find("body.mediawiki, #mw-content-text").Length() == 0 {
+		return ""
+	}
+	if coordinates := firstSelectionText(doc.Find("#coordinates").First()); coordinates != "" {
+		return coordinates
+	}
+	var excerpt string
+	doc.Find("#mw-content-text p").EachWithBreak(func(_ int, s *goquery.Selection) bool {
+		text := strings.TrimSpace(s.Text())
+		normalized := normalizeSpace(text)
+		if normalized == "" || isMediaWikiLeadNoise(s, normalized) {
+			return true
+		}
+		excerpt = text
+		return false
+	})
+	return excerpt
+}
+
+func isMediaWikiLeadNoise(s *goquery.Selection, text string) bool {
+	classID := strings.ToLower(attr(s, "class") + " " + attr(s, "id"))
+	if strings.Contains(classID, "hatnote") ||
+		strings.Contains(classID, "shortdescription") ||
+		strings.Contains(classID, "navigation-not-searchable") {
+		return true
+	}
+	lower := strings.ToLower(text)
+	return strings.HasPrefix(lower, "see also:") ||
+		strings.HasPrefix(lower, "this article is about") ||
+		(strings.HasPrefix(lower, "for ") && strings.Contains(lower, ", see "))
+}
+
+// compatPostsAncestor promotes the immediate parent of the top candidate when
+// it is a low-link-density `#posts` container, matching upstream Readability's
+// behavior on blog roll fixtures.
+func compatPostsAncestor(top *xhtml.Node, scores map[*xhtml.Node]float64, topScore float64) (*xhtml.Node, float64, bool) {
+	parent := top.Parent
+	if parent == nil || nodeAttr(parent, "id") != "posts" {
+		return nil, 0, false
+	}
+	if linkDensity(selectionForNode(parent)) >= 0.25 {
+		return nil, 0, false
+	}
+	return parent, math.Max(topScore, scores[parent]), true
+}
+
+// compatContentMainArticleAncestor promotes an `<article>` top candidate to
+// its `#content-main` parent so news-site fixtures retain surrounding wrapper
+// markup that upstream Readability captures.
+func compatContentMainArticleAncestor(top *xhtml.Node, scores map[*xhtml.Node]float64, lastScore float64) (*xhtml.Node, float64, bool) {
+	if tagNameNode(top) != "article" || top.Parent == nil {
+		return nil, 0, false
+	}
+	if nodeAttr(top.Parent, "id") != "content-main" {
+		return nil, 0, false
+	}
+	parent := top.Parent
+	score := scores[parent]
+	if score == 0 {
+		score = lastScore
+	}
+	return parent, score, true
+}
 
 // Compatibility helpers preserve source patterns that Readability commonly
 // normalizes differently from a plain DOM cleanup pass.

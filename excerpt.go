@@ -65,36 +65,10 @@ func firstStructuredSourceExcerpt(data []byte, title string) string {
 	if topic := firstNavigationTopicTitle(doc); topic != "" {
 		return topic
 	}
-	if doc.Find("body.mediawiki, #mw-content-text").Length() > 0 {
-		if coordinates := firstSelectionText(doc.Find("#coordinates").First()); coordinates != "" {
-			return coordinates
-		}
-		var excerpt string
-		doc.Find("#mw-content-text p").EachWithBreak(func(_ int, s *goquery.Selection) bool {
-			text := strings.TrimSpace(s.Text())
-			normalized := normalizeSpace(text)
-			if normalized == "" || isMediaWikiLeadNoise(s, normalized) {
-				return true
-			}
-			excerpt = text
-			return false
-		})
+	if excerpt := compatMediaWikiExcerpt(doc); excerpt != "" {
 		return excerpt
 	}
 	return ""
-}
-
-func isMediaWikiLeadNoise(s *goquery.Selection, text string) bool {
-	classID := strings.ToLower(attr(s, "class") + " " + attr(s, "id"))
-	if strings.Contains(classID, "hatnote") ||
-		strings.Contains(classID, "shortdescription") ||
-		strings.Contains(classID, "navigation-not-searchable") {
-		return true
-	}
-	lower := strings.ToLower(text)
-	return strings.HasPrefix(lower, "see also:") ||
-		strings.HasPrefix(lower, "this article is about") ||
-		(strings.HasPrefix(lower, "for ") && strings.Contains(lower, ", see "))
 }
 
 func firstMathHeavyShortExcerpt(doc *goquery.Document) string {
