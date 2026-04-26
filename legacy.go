@@ -9,6 +9,10 @@ import (
 
 // Legacy helpers cover older fixture shapes that need compatibility handling
 // but should not shape the generic extraction path.
+//
+// Fixture: hukumusume. This page uses table-based Shift_JIS-era layout where
+// the story content is split across adjacent cells instead of a modern article
+// container.
 func legacyHukumusumeSelection(doc *goquery.Document) *goquery.Selection {
 	main := doc.Find(`td[width="619"]`).First()
 	if main.Length() == 0 || !strings.Contains(doc.Text(), "福娘童話集") {

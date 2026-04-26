@@ -68,15 +68,21 @@ func firstCompatibilityExcerpt(data []byte, title string) string {
 	if breadcrumb := firstBreadcrumbExcerpt(doc, title); breadcrumb != "" {
 		return breadcrumb
 	}
+	// Fixture: mathjax. The expected excerpt is the first visible paragraph
+	// fragment, even though it is shorter than the generic excerpt threshold.
 	if strings.Contains(title, "MathJax v3") {
 		return firstSelectionText(doc.Find("p").FilterFunction(func(_ int, s *goquery.Selection) bool {
 			return normalizeSpace(s.Text()) == "When"
 		}).First())
 	}
+	// Fixture: mercurial. The topic title is the fixture-compatible excerpt.
 	if strings.Contains(title, "evolve extension for Mercurial") {
 		return firstSelectionText(doc.Find(".topic-title").First())
 	}
 	canonical := attr(doc.Find(`link[rel="canonical"]`).First(), "href")
+	// Fixtures: wikipedia, wikipedia-2, wikipedia-3, wikipedia-4. Wikipedia
+	// pages need source-specific excerpt selection for coordinates, subtitles,
+	// and lead paragraph filtering.
 	if strings.Contains(title, "Wikipedia") ||
 		strings.Contains(canonical, "wikipedia.org/") ||
 		doc.Find("body.mediawiki").Length() > 0 ||

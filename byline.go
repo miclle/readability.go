@@ -148,23 +148,28 @@ func compatibilityByline(doc *goquery.Document) string {
 	siteName := attr(doc.Find(`meta[property="og:site_name"]`).First(), "content")
 	canonical := attr(doc.Find(`link[rel="canonical"]`).First(), "href")
 	switch {
+	// Fixture: herald-sun-1.
 	case siteName == "HeraldSun":
 		return firstSelectionText(doc.Find("em.byline").FilterFunction(func(_ int, s *goquery.Selection) bool {
 			text := strings.TrimSpace(s.Text())
 			return text != "" && text == strings.ToUpper(text)
 		}))
+	// Fixtures: liberation-1, videos-2.
 	case siteName == "Libération.fr":
 		return firstSelectionText(doc.Find("span.author").FilterFunction(func(_ int, s *goquery.Selection) bool {
 			return strings.HasPrefix(normalizeSpace(s.Text()), "Par ")
 		}))
+	// Fixture: salon-1.
 	case strings.Contains(canonical, "salon.com/"):
 		return firstSelectionText(doc.Find("span.byline a").First())
+	// Fixture: seattletimes-1.
 	case siteName == "The Seattle Times":
 		published := normalizeSpace(doc.Find("time.published, time.dt-published").First().Text())
 		updated := normalizeSpace(doc.Find("time.updated, time.dt-updated").First().Text())
 		if published != "" && updated != "" {
 			return published + " " + updated
 		}
+	// Fixture: yahoo-4.
 	case siteName == "Yahoo!ニュース":
 		return firstSelectionText(doc.Find("#gnPriBylines a").First())
 	}
