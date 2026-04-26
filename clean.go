@@ -8,14 +8,32 @@ import (
 )
 
 func cleanArticleCandidate(article *goquery.Selection) {
+	cleanArticleCandidateWithOptions(article, articleCleanOptions{
+		StripUnlikely:      true,
+		WeightClasses:      true,
+		CleanConditionally: true,
+	})
+}
+
+type articleCleanOptions struct {
+	StripUnlikely      bool
+	WeightClasses      bool
+	CleanConditionally bool
+}
+
+func cleanArticleCandidateWithOptions(article *goquery.Selection, options articleCleanOptions) {
 	removeDisallowedArticleElements(article)
 	applyEarlyCompatibilityCleanups(article)
 	cleanEmbeddedMedia(article)
 	removeArticleNoiseBlocks(article)
 	normalizeArticleMarkup(article)
-	applyConditionalCleanups(article)
+	if options.CleanConditionally {
+		applyConditionalCleanups(article, conditionOptions{WeightClasses: options.WeightClasses})
+	}
 	applyLateCompatibilityCleanups(article)
-	removeUnlikelyArticleElements(article)
+	if options.StripUnlikely {
+		removeUnlikelyArticleElements(article)
+	}
 	removeEmptyParagraphs(article)
 	finalizeArticleStructure(article)
 }
@@ -145,12 +163,12 @@ func normalizeArticleMarkup(article *goquery.Selection) {
 	removeUnusedSVGSymbols(article)
 }
 
-func applyConditionalCleanups(article *goquery.Selection) {
-	cleanConditionally(article, "form")
-	cleanConditionally(article, "fieldset")
-	cleanConditionally(article, "table")
-	cleanConditionally(article, "ul")
-	cleanConditionally(article, "div")
+func applyConditionalCleanups(article *goquery.Selection, options conditionOptions) {
+	cleanConditionally(article, "form", options)
+	cleanConditionally(article, "fieldset", options)
+	cleanConditionally(article, "table", options)
+	cleanConditionally(article, "ul", options)
+	cleanConditionally(article, "div", options)
 }
 
 func applyLateCompatibilityCleanups(article *goquery.Selection) {

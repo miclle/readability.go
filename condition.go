@@ -9,7 +9,11 @@ import (
 	xhtml "golang.org/x/net/html"
 )
 
-func cleanConditionally(root *goquery.Selection, tag string) {
+type conditionOptions struct {
+	WeightClasses bool
+}
+
+func cleanConditionally(root *goquery.Selection, tag string, options conditionOptions) {
 	var nodes []*xhtml.Node
 	root.Find(tag).Each(func(_ int, s *goquery.Selection) {
 		if node := s.Get(0); node != nil {
@@ -22,13 +26,13 @@ func cleanConditionally(root *goquery.Selection, tag string) {
 			continue
 		}
 		s := selectionForNode(node)
-		if shouldRemoveConditionally(s, tag) {
+		if shouldRemoveConditionally(s, tag, options) {
 			removeNode(node)
 		}
 	}
 }
 
-func shouldRemoveConditionally(s *goquery.Selection, tag string) bool {
+func shouldRemoveConditionally(s *goquery.Selection, tag string, options conditionOptions) bool {
 	text := innerText(s)
 	classID := strings.ToLower(attr(s, "class") + " " + attr(s, "id"))
 	if attr(s, "id") == "contents" || isExpandedBylineActivity(s) {
@@ -70,7 +74,10 @@ func shouldRemoveConditionally(s *goquery.Selection, tag string) bool {
 		isList = float64(listLength)/float64(len([]rune(text))) > 0.9
 	}
 
-	weight := classWeight(s)
+	weight := 0.0
+	if options.WeightClasses {
+		weight = classWeight(s)
+	}
 	if weight < 0 {
 		return true
 	}

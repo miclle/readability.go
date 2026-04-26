@@ -35,6 +35,9 @@ func extractArticleContent(doc *goquery.Document, pageURL string, title string) 
 	if len([]rune(innerText(candidate))) < 100 {
 		if fallback := fallbackArticleSelection(fallbackDoc); fallback.Length() > 0 {
 			candidate = wrapArticleSelection(fallback)
+		} else if relaxed := relaxedArticleSelection(fallbackDoc, title); relaxed.Length() > 0 {
+			candidate = relaxed
+			return candidate
 		}
 	}
 	cleanArticleCandidate(candidate)
@@ -57,6 +60,38 @@ func extractArticleContent(doc *goquery.Document, pageURL string, title string) 
 		}
 	}
 	return candidate
+}
+
+func relaxedArticleSelection(doc *goquery.Document, title string) *goquery.Selection {
+	attempts := []struct {
+		scoring articleScoringOptions
+		clean   articleCleanOptions
+	}{
+		{
+			scoring: articleScoringOptions{StripUnlikely: false, WeightClasses: true},
+			clean:   articleCleanOptions{StripUnlikely: false, WeightClasses: true, CleanConditionally: true},
+		},
+		{
+			scoring: articleScoringOptions{StripUnlikely: false, WeightClasses: false},
+			clean:   articleCleanOptions{StripUnlikely: false, WeightClasses: false, CleanConditionally: true},
+		},
+		{
+			scoring: articleScoringOptions{StripUnlikely: false, WeightClasses: false},
+			clean:   articleCleanOptions{StripUnlikely: false, WeightClasses: false, CleanConditionally: false},
+		},
+	}
+	for _, attempt := range attempts {
+		relaxedDoc := cloneDocument(doc)
+		candidate := bestArticleCandidateWithOptions(relaxedDoc, title, attempt.scoring)
+		if len([]rune(innerText(candidate))) < 100 {
+			continue
+		}
+		cleanArticleCandidateWithOptions(candidate, attempt.clean)
+		if len([]rune(innerText(candidate))) >= 100 {
+			return candidate
+		}
+	}
+	return &goquery.Selection{}
 }
 
 func cloneDocument(doc *goquery.Document) *goquery.Document {

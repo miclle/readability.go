@@ -9,7 +9,16 @@ import (
 )
 
 func bestArticleCandidate(doc *goquery.Document, title string) *goquery.Selection {
-	prepareArticleScoring(doc, title)
+	return bestArticleCandidateWithOptions(doc, title, articleScoringOptions{StripUnlikely: true, WeightClasses: true})
+}
+
+type articleScoringOptions struct {
+	StripUnlikely bool
+	WeightClasses bool
+}
+
+func bestArticleCandidateWithOptions(doc *goquery.Document, title string, options articleScoringOptions) *goquery.Selection {
+	prepareArticleScoring(doc, title, options)
 
 	scores := map[*xhtml.Node]float64{}
 	var candidates []*xhtml.Node
@@ -30,7 +39,7 @@ func bestArticleCandidate(doc *goquery.Document, title string) *goquery.Selectio
 				continue
 			}
 			if _, ok := scores[ancestor]; !ok {
-				scores[ancestor] = initialNodeScore(ancestor)
+				scores[ancestor] = initialNodeScoreWithOptions(ancestor, options)
 				candidates = append(candidates, ancestor)
 			}
 			divider := 1.0
@@ -75,18 +84,18 @@ func bestArticleCandidate(doc *goquery.Document, title string) *goquery.Selectio
 	body := doc.Find("body").First().Get(0)
 	if topCandidate == nil || tagNameNode(topCandidate) == "body" {
 		topCandidate = body
-		topScore = initialNodeScore(topCandidate)
+		topScore = initialNodeScoreWithOptions(topCandidate, options)
 	}
 	if topCandidate == nil {
 		return doc.Find("body").First()
 	}
 
-	topCandidate, topScore = betterSharedAncestorCandidate(topCandidate, topCandidates, scores, topScore)
+	topCandidate, topScore = betterSharedAncestorCandidate(topCandidate, topCandidates, scores, topScore, options)
 	topCandidate, topScore = betterAncestorCandidate(topCandidate, scores, topScore)
 	return buildArticleContent(topCandidate, scores, topScore)
 }
 
-func betterSharedAncestorCandidate(top *xhtml.Node, topCandidates []*xhtml.Node, scores map[*xhtml.Node]float64, topScore float64) (*xhtml.Node, float64) {
+func betterSharedAncestorCandidate(top *xhtml.Node, topCandidates []*xhtml.Node, scores map[*xhtml.Node]float64, topScore float64, options articleScoringOptions) (*xhtml.Node, float64) {
 	if top == nil || topScore == 0 || len(topCandidates) < 4 {
 		return top, topScore
 	}
@@ -111,7 +120,7 @@ func betterSharedAncestorCandidate(top *xhtml.Node, topCandidates []*xhtml.Node,
 			}
 			if containing >= minimumTopCandidates {
 				if _, ok := scores[parent]; !ok {
-					scores[parent] = initialNodeScore(parent)
+					scores[parent] = initialNodeScoreWithOptions(parent, options)
 				}
 				return parent, scores[parent]
 			}
@@ -120,7 +129,7 @@ func betterSharedAncestorCandidate(top *xhtml.Node, topCandidates []*xhtml.Node,
 	return top, topScore
 }
 
-func prepareArticleScoring(doc *goquery.Document, title string) {
+func prepareArticleScoring(doc *goquery.Document, title string, options articleScoringOptions) {
 	removedTitleHeader := false
 	doc.Find("*").Each(func(_ int, s *goquery.Selection) {
 		node := s.Get(0)
@@ -146,8 +155,8 @@ func prepareArticleScoring(doc *goquery.Document, title string) {
 		classID := strings.ToLower(attr(s, "class") + " " + attr(s, "id"))
 		if !isVisibleForArticle(s) ||
 			(attr(s, "aria-modal") == "true" && attr(s, "role") == "dialog") ||
-			unlikelyRole(attr(s, "role")) ||
-			(unlikelyCandidateRE.MatchString(classID) && !okMaybeCandidateRE.MatchString(classID) && tag != "a" && !hasAncestorNodeTag(node, "table") && !hasAncestorNodeTag(node, "code")) {
+			(options.StripUnlikely && unlikelyRole(attr(s, "role"))) ||
+			(options.StripUnlikely && unlikelyCandidateRE.MatchString(classID) && !okMaybeCandidateRE.MatchString(classID) && tag != "a" && !hasAncestorNodeTag(node, "table") && !hasAncestorNodeTag(node, "code")) {
 			removeNode(node)
 			return
 		}
@@ -290,6 +299,10 @@ func hasDataLoadPlaylistSibling(node *xhtml.Node) bool {
 }
 
 func initialNodeScore(node *xhtml.Node) float64 {
+	return initialNodeScoreWithOptions(node, articleScoringOptions{WeightClasses: true})
+}
+
+func initialNodeScoreWithOptions(node *xhtml.Node, options articleScoringOptions) float64 {
 	score := 0.0
 	switch tagNameNode(node) {
 	case "div":
@@ -301,7 +314,10 @@ func initialNodeScore(node *xhtml.Node) float64 {
 	case "h1", "h2", "h3", "h4", "h5", "h6", "th":
 		score -= 5
 	}
-	return score + classWeight(selectionForNode(node))
+	if options.WeightClasses {
+		score += classWeight(selectionForNode(node))
+	}
+	return score
 }
 
 func classWeight(s *goquery.Selection) float64 {
