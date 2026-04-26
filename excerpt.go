@@ -17,6 +17,9 @@ func firstExcerptText(s *goquery.Selection, title string) string {
 		if block.Find("p, div").Length() > 0 {
 			return true
 		}
+		if hasAncestorNodeTag(block.Get(0), "table") {
+			return true
+		}
 		if isBylineCandidate(block) {
 			return true
 		}

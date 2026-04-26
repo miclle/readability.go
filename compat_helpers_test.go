@@ -250,6 +250,18 @@ func TestStructuredExcerptSkipsMediaWikiHatnotes(t *testing.T) {
 	}
 }
 
+func TestFirstExcerptTextSkipsTableText(t *testing.T) {
+	doc := mustTestDocument(t, `<article>
+		<table><tr><td><p>Mozilla Corporation Mozilla Foundation</p></td></tr></table>
+		<p>Mozilla is a free-software community, created in 1998 by members of Netscape.</p>
+	</article>`)
+
+	got := firstExcerptText(doc.Find("article"), "Mozilla - Wikipedia")
+	if got != "Mozilla is a free-software community, created in 1998 by members of Netscape." {
+		t.Fatalf("excerpt = %q", got)
+	}
+}
+
 func TestUnwrapSingleCellTablesWrapsPhrasingContent(t *testing.T) {
 	doc := mustTestDocument(t, `<article><table><tr><td>Lead <em>text</em></td></tr></table></article>`)
 	article := doc.Find("article").First()
