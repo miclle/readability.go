@@ -101,9 +101,8 @@ func FromReader(r io.Reader, pageURL string, options *Options) (Article, error) 
 }
 
 func preferredNBSPSerializedEntity(data []byte) string {
-	named := bytes.Count(data, []byte("&nbsp;"))
 	numeric := bytes.Count(data, []byte("&#160;"))
-	if numeric > named {
+	if numeric > 0 {
 		return "&#160;"
 	}
 	return "&nbsp;"
