@@ -132,6 +132,9 @@ func firstValidSourceByline(doc *goquery.Document) string {
 }
 
 func validSourceByline(s *goquery.Selection, matchString string) bool {
+	if isFooterBylineContext(s) {
+		return false
+	}
 	textLength := len([]rune(strings.TrimSpace(s.Text())))
 	if textLength == 0 || textLength >= 100 {
 		return false
@@ -144,6 +147,20 @@ func validSourceByline(s *goquery.Selection, matchString string) bool {
 }
 
 var bylineRE = regexp.MustCompile(`(?i)byline|author|dateline|writtenby|p-author`)
+
+func isFooterBylineContext(s *goquery.Selection) bool {
+	for current := s; current.Length() > 0; current = current.Parent() {
+		tag := tagName(current)
+		classID := strings.ToLower(attr(current, "class") + " " + attr(current, "id"))
+		if tag == "footer" ||
+			strings.Contains(classID, "footer") ||
+			strings.Contains(classID, "comment") ||
+			strings.Contains(classID, "profile") {
+			return true
+		}
+	}
+	return false
+}
 
 func cleanGenericByline(byline string) string {
 	if strings.Contains(byline, "Edited by") {

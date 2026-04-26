@@ -41,6 +41,18 @@ func TestBylineSemanticHelpers(t *testing.T) {
 	}
 }
 
+func TestFirstSourceBylineSkipsFooterAuthors(t *testing.T) {
+	data := []byte(`<html><body>
+		<article><p>Useful article text with enough context to stand on its own.</p></article>
+		<footer class="footer-author"><span itemprop="author"><span itemprop="name">Footer Author</span></span></footer>
+		<div class="post-footer"><a rel="author">Post Footer Author</a></div>
+	</body></html>`)
+
+	if byline := firstSourceByline(data, ""); byline != "" {
+		t.Fatalf("byline = %q", byline)
+	}
+}
+
 func TestSelectionInnerHTMLPreservesTextQuotes(t *testing.T) {
 	doc := mustTestDocument(t, `<div id="root"><p title="'quoted'">You're "ready"</p></div>`)
 
