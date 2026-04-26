@@ -360,11 +360,6 @@ func isHidden(s *goquery.Selection) bool {
 		strings.EqualFold(attr(s, "aria-hidden"), "true")
 }
 
-func hasFallbackImageClass(s *goquery.Selection) bool {
-	className := strings.ToLower(attr(s, "class"))
-	return strings.Contains(className, "fallback-image")
-}
-
 func collectMetaValues(doc *goquery.Document) map[string]string {
 	values := map[string]string{}
 	doc.Find("meta").Each(func(_ int, s *goquery.Selection) {

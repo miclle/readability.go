@@ -155,11 +155,7 @@ func simplifyNestedElements(root *goquery.Selection) {
 				return false
 			}
 			child := firstElementChild(node)
-			if (nodeAttr(node, "id") == "content" || nodeAttr(node, "id") == "content-main") && child != nil &&
-				(tagNameNode(child) == "article" || selectionForNode(child).Find("article").Length() > 0) {
-				return true
-			}
-			if node.Parent != nil && (nodeAttr(node.Parent, "id") == "content" || nodeAttr(node.Parent, "id") == "content-main") && tagNameNode(child) == "article" {
+			if compatPreserveContentMainWrapper(node, child) {
 				return true
 			}
 			if child != nil && nextElementSibling(child) == nil && (tagNameNode(child) == "div" || tagNameNode(child) == "section") {

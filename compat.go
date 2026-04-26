@@ -44,6 +44,34 @@ func isMediaWikiLeadNoise(s *goquery.Selection, text string) bool {
 		(strings.HasPrefix(lower, "for ") && strings.Contains(lower, ", see "))
 }
 
+// compatPreserveContentMainWrapper returns true when a div/section being
+// considered for unwrap should be kept because it (or its parent) is the
+// `#content` / `#content-main` wrapper around an `<article>` element. News
+// fixtures rely on those wrappers staying intact for ancestor scoring.
+func compatPreserveContentMainWrapper(node *xhtml.Node, child *xhtml.Node) bool {
+	id := nodeAttr(node, "id")
+	if (id == "content" || id == "content-main") && child != nil &&
+		(tagNameNode(child) == "article" || selectionForNode(child).Find("article").Length() > 0) {
+		return true
+	}
+	if node.Parent != nil {
+		parentID := nodeAttr(node.Parent, "id")
+		if (parentID == "content" || parentID == "content-main") && tagNameNode(child) == "article" {
+			return true
+		}
+	}
+	return false
+}
+
+// hasFallbackImageClass reports whether s carries the `fallback-image` class
+// used by certain CMS fixtures (e.g. Wikipedia math fallbacks). The
+// visibility helpers treat such nodes as visible despite `aria-hidden="true"`
+// because upstream Readability needs to keep their associated content.
+func hasFallbackImageClass(s *goquery.Selection) bool {
+	className := strings.ToLower(attr(s, "class"))
+	return strings.Contains(className, "fallback-image")
+}
+
 // compatPostsAncestor promotes the immediate parent of the top candidate when
 // it is a low-link-density `#posts` container, matching upstream Readability's
 // behavior on blog roll fixtures.
