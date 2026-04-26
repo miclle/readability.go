@@ -32,3 +32,22 @@ jobs:
 
       - name: Run compatibility fixtures
         run: make compat-test
+
+  fuzz:
+    name: Fuzz smoke
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+
+      # Short fuzz pass to catch regressions on the parser pipeline and
+      # readerability pre-check. Local runs can use a longer FUZZTIME.
+      - name: Run fuzz smoke
+        run: make fuzz FUZZTIME=20s
