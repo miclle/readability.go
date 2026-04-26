@@ -8,6 +8,12 @@ import (
 	xhtml "golang.org/x/net/html"
 )
 
+// removeUnusedSVGSymbols drops the share-icon symbol from inline SVG
+// sprites that look like media-player controls. We key off the presence
+// of play/pause/fullscreen/video symbols (a strong signal the SVG is a
+// player skin) and remove the share symbol because it consistently
+// appears as a UI affordance the cleanup pass would otherwise miss —
+// readers don't need a share icon embedded in the rendered article.
 func removeUnusedSVGSymbols(root *goquery.Selection) {
 	root.Find("svg").Each(func(_ int, s *goquery.Selection) {
 		if s.Find("symbol#play, symbol#pause, symbol#fullscreen, symbol#video").Length() == 0 {
@@ -17,6 +23,11 @@ func removeUnusedSVGSymbols(root *goquery.Selection) {
 	})
 }
 
+// removeEmptyMediaHeadings deletes h1/h2 elements that contain only an
+// SVG decoration (no text). These typically come from CMS templates that
+// use icon-only headings for navigational accents — they survive scoring
+// because the SVG counts as content, but they add no information to the
+// rendered article.
 func removeEmptyMediaHeadings(root *goquery.Selection) {
 	root.Find("h1, h2").Each(func(_ int, s *goquery.Selection) {
 		if normalizeSpace(s.Text()) != "" || s.Find("svg").Length() == 0 {
@@ -26,6 +37,20 @@ func removeEmptyMediaHeadings(root *goquery.Selection) {
 	})
 }
 
+// fixLazyImages mirrors mozilla/readability's `_fixLazyImages`: many
+// sites emit a tiny base64 placeholder as the visible `src` and stash
+// the real image URL in a data-* attribute (data-src, data-original,
+// data-lazy-srcset, ...). Two passes:
+//  1. If the visible src is a base64 data URL AND another attribute on
+//     the same element looks like an image URL AND the data URL is small
+//     (< 133 chars beyond the prefix, matching upstream's heuristic),
+//     drop the placeholder src so step 2 is allowed to run. SVG data
+//     URLs are preserved because they may be the real image.
+//  2. For any element that has no usable src/srcset (or has a "lazy"
+//     class), copy the first URL-shaped data-* attribute into src or
+//     srcset (depending on whether it looks like a single URL or a
+//     comma-separated set). For <figure> we synthesize a child <img>
+//     when none exists yet, so the lazy-loaded image still scores.
 func fixLazyImages(root *goquery.Selection) {
 	root.Find("img, picture, figure").Each(func(_ int, s *goquery.Selection) {
 		elem := s.Get(0)
@@ -87,6 +112,18 @@ func fixLazyImages(root *goquery.Selection) {
 	})
 }
 
+// preservableMediaCount counts embedded media inside `s` that
+// conditional cleanup must keep — i.e. legitimate audio/video/iframe
+// content. Three categories qualify:
+//   - <audio src=…>: a real audio element with a source URL.
+//   - <video> with a blob: src or data-video-id attribute, which signals
+//     a player binding to a real stream even if the src looks empty.
+//   - any iframe/object/embed/audio/video whose attributes contain a URL
+//     matched by cfg.videoAllowed (the parser-configurable allow list).
+//
+// The result feeds conditional cleanup's "this looks like a media-rich
+// article" exemption so player blocks aren't stripped along with
+// surrounding boilerplate.
 func preservableMediaCount(s *goquery.Selection, cfg parserConfig) int {
 	count := 0
 	s.Find("iframe, video, audio, object, embed").Each(func(_ int, media *goquery.Selection) {
@@ -113,6 +150,12 @@ func preservableMediaCount(s *goquery.Selection, cfg parserConfig) int {
 	return count
 }
 
+// removableEmbedCount is the inverse of preservableMediaCount: it
+// counts object/embed/iframe elements that are NOT on the video allow
+// list (neither attribute values nor inner HTML match cfg.videoAllowed).
+// Conditional cleanup uses this number as part of the "embed weight" in
+// the link-density formula: lots of unrecognized embeds push the
+// element toward removal, even when its text-to-link ratio looks fine.
 func removableEmbedCount(s *goquery.Selection, cfg parserConfig) int {
 	count := 0
 	s.Find("object, embed, iframe").Each(func(_ int, embed *goquery.Selection) {

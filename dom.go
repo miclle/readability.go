@@ -7,6 +7,11 @@ import (
 	xhtml "golang.org/x/net/html"
 )
 
+// nodeAncestors walks up the DOM from `node` collecting element ancestors.
+// The walk stops at <html> (excluded) so callers don't see the document
+// root in the result. When maxDepth > 0 the slice is capped at that many
+// levels, which the scoring pass uses to bound how far a paragraph's
+// content score can propagate up the tree.
 func nodeAncestors(node *xhtml.Node, maxDepth int) []*xhtml.Node {
 	var ancestors []*xhtml.Node
 	for current, depth := node.Parent, 0; current != nil; current, depth = current.Parent, depth+1 {
@@ -23,6 +28,11 @@ func nodeAncestors(node *xhtml.Node, maxDepth int) []*xhtml.Node {
 	return ancestors
 }
 
+// selectionForNode wraps a single xhtml.Node in a goquery.Selection so
+// helpers that already accept *goquery.Selection can also operate on raw
+// nodes. The new Document is intentionally cheap (no parser pass) since
+// the node is already attached to its real tree; callers should not rely
+// on the wrapper's document identity.
 func selectionForNode(node *xhtml.Node) *goquery.Selection {
 	return goquery.NewDocumentFromNode(node).Selection
 }
@@ -96,6 +106,12 @@ func hasAncestorNodeMatching(node *xhtml.Node, match func(*xhtml.Node) bool) boo
 	return false
 }
 
+// elementWithoutContent returns true when the element has no text and
+// contains no embedded media. Scoring uses this to drop empty wrapper
+// divs/sections that survived initial cleanup; we treat
+// img/picture/video/audio/iframe/object/embed/svg/math as content even
+// when they carry no text, because those elements ARE the article in
+// gallery / video / equation pages.
 func elementWithoutContent(s *goquery.Selection) bool {
 	if normalizeSpace(s.Text()) != "" {
 		return false
@@ -184,6 +200,12 @@ func isSingleImageSelection(s *goquery.Selection) bool {
 	return isSingleImageNode(s.Get(0))
 }
 
+// isSingleImageNode reports whether the subtree rooted at `node` is
+// effectively a single image: the node itself is <img>, or it is a chain
+// of element wrappers (figure > picture > img, figure > a > img, ...)
+// containing exactly one <img> with only whitespace text around it. The
+// noscript-image unwrap path uses this to detect placeholder wrappers
+// before swapping in the noscript-supplied real image.
 func isSingleImageNode(node *xhtml.Node) bool {
 	if node == nil {
 		return false
@@ -267,6 +289,11 @@ func childNodes(node *xhtml.Node) []*xhtml.Node {
 	return children
 }
 
+// canAppendAsArticleChild reports whether `node` is a tag we let the
+// final article wrapper hold directly. Anything else (li, td, dd, ...)
+// is rewritten to <div> by buildArticleContent so the rendered output
+// stays valid HTML even when a list-style sibling scored high enough to
+// be included as part of the article body.
 func canAppendAsArticleChild(node *xhtml.Node) bool {
 	switch tagNameNode(node) {
 	case "div", "article", "section", "p", "ol", "ul", "hr", "svg":
@@ -348,6 +375,15 @@ func selectionInnerHTMLWithNBSP(s *goquery.Selection, nbspEntity string) (string
 	return normalizeSerializedTextEntities(html, nbspEntity), nil
 }
 
+// normalizeSerializedTextEntities is a single-pass HTML serializer
+// patcher: in attribute regions (between `<` and `>`) it normalizes
+// numeric quote entities to their named forms (&apos; / &quot;) so the
+// output matches mozilla/readability's serialization; in text regions it
+// unescapes the same numeric entities to their raw quote characters and
+// rewrites U+00A0 to the configured nbsp entity. The state machine is
+// intentionally tag-shape-aware (rather than full HTML aware) because
+// goquery's serializer already produces well-formed output, so a string
+// scan is enough to recover the upstream-compatible rendering.
 func normalizeSerializedTextEntities(value, nbspEntity string) string {
 	var out strings.Builder
 	out.Grow(len(value))
