@@ -224,6 +224,16 @@ func TestImageBackedPlayerContainerIsMedia(t *testing.T) {
 	}
 }
 
+func TestTrademarkNoticeRemovesPrecedingRule(t *testing.T) {
+	doc := mustTestDocument(t, `<article><p>Body</p><hr><p>Example is a service mark of Example Co.</p></article>`)
+
+	removeCompatibilityHorizontalRules(doc.Find("article"))
+
+	if doc.Find("hr").Length() != 0 {
+		t.Fatal("trademark notice separator should be removed")
+	}
+}
+
 func TestCollectionHighlightsDetectionUsesClassAndIDMeaning(t *testing.T) {
 	doc := mustTestDocument(t, `<section id="feature-collection" class="story-highlights"><p id="item">Story</p></section>`)
 

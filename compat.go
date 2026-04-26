@@ -233,7 +233,7 @@ func removeCompatibilityHorizontalRules(root *goquery.Selection) {
 			return
 		}
 		text := normalizeSpace(selectionForNode(next).Text())
-		if isDisclaimerLikeBlock(text) {
+		if isDisclaimerLikeBlock(text) || isTrademarkNoticeBlock(text) {
 			removeNode(node)
 		}
 	})
@@ -243,6 +243,12 @@ func isDisclaimerLikeBlock(text string) bool {
 	lower := strings.ToLower(text)
 	return strings.Contains(lower, "disclaimer") &&
 		(len([]rune(text)) < 200 || strings.Contains(lower, "copyright") || strings.Contains(lower, "license"))
+}
+
+func isTrademarkNoticeBlock(text string) bool {
+	lower := strings.ToLower(text)
+	return len([]rune(text)) < 160 &&
+		(strings.Contains(lower, "service mark") || strings.Contains(lower, "trademark"))
 }
 
 func removeMediaSectionHeadings(root *goquery.Selection) {
