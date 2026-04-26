@@ -8,7 +8,7 @@ import (
 	xhtml "golang.org/x/net/html"
 )
 
-func extractArticleContent(doc *goquery.Document, pageURL string, title string) *goquery.Selection {
+func extractArticleContent(doc *goquery.Document, pageURL string, title string, cfg parserConfig) *goquery.Selection {
 	unwrapNoscriptImages(doc)
 	doc.Find("script, style, noscript").Remove()
 	removeComments(doc.Selection)
@@ -23,61 +23,61 @@ func extractArticleContent(doc *goquery.Document, pageURL string, title string) 
 	fallbackDoc := cloneDocument(doc)
 
 	if legacy := legacyTableArticleSelection(doc); legacy.Length() > 0 {
-		cleanLegacyTableCandidate(legacy)
+		cleanLegacyTableCandidate(legacy, cfg)
 		return legacy
 	}
 	if explicit := explicitArticleDescription(doc); explicit.Length() > 0 {
 		candidate := wrapArticleSelection(explicit)
-		cleanArticleCandidate(candidate)
+		cleanArticleCandidateConfig(candidate, cfg)
 		return candidate
 	}
-	candidate := bestArticleCandidate(doc, title)
+	candidate := bestArticleCandidate(doc, title, cfg)
 	if len([]rune(innerText(candidate))) < 100 {
 		if fallback := fallbackArticleSelection(fallbackDoc); fallback.Length() > 0 {
 			candidate = wrapArticleSelection(fallback)
-		} else if relaxed := relaxedArticleSelection(fallbackDoc, title); relaxed.Length() > 0 {
+		} else if relaxed := relaxedArticleSelection(fallbackDoc, title, cfg); relaxed.Length() > 0 {
 			candidate = relaxed
 			return candidate
 		}
 	}
-	cleanArticleCandidate(candidate)
+	cleanArticleCandidateConfig(candidate, cfg)
 	if isPrintMessageSelection(candidate) {
 		if explicit := bestSelectionByTextLength(fallbackDoc.Find(`[itemprop="articleBody"], [property="articleBody"]`)); explicit.Length() > 0 {
 			candidate = wrapArticleSelection(explicit)
-			cleanArticleCandidate(candidate)
+			cleanArticleCandidateConfig(candidate, cfg)
 		}
 	}
 	if isFormContentSelection(candidate) {
 		if fallback := bestSelectionByTextLength(fallbackDoc.Find("#content, article")); fallback.Length() > 0 {
 			candidate = wrapArticleSelection(fallback)
-			cleanArticleCandidate(candidate)
+			cleanArticleCandidateConfig(candidate, cfg)
 		}
 	}
 	if len([]rune(innerText(candidate))) < 100 {
 		if fallback := fallbackArticleSelection(fallbackDoc); fallback.Length() > 0 {
 			candidate = wrapArticleSelection(fallback)
-			cleanArticleCandidate(candidate)
+			cleanArticleCandidateConfig(candidate, cfg)
 		}
 	}
 	return candidate
 }
 
-func relaxedArticleSelection(doc *goquery.Document, title string) *goquery.Selection {
+func relaxedArticleSelection(doc *goquery.Document, title string, cfg parserConfig) *goquery.Selection {
 	attempts := []struct {
 		scoring articleScoringOptions
 		clean   articleCleanOptions
 	}{
 		{
-			scoring: articleScoringOptions{StripUnlikely: false, WeightClasses: true},
-			clean:   articleCleanOptions{StripUnlikely: false, WeightClasses: true, CleanConditionally: true},
+			scoring: articleScoringOptions{StripUnlikely: false, WeightClasses: true, Config: cfg},
+			clean:   articleCleanOptions{StripUnlikely: false, WeightClasses: true, CleanConditionally: true, Config: cfg},
 		},
 		{
-			scoring: articleScoringOptions{StripUnlikely: false, WeightClasses: false},
-			clean:   articleCleanOptions{StripUnlikely: false, WeightClasses: false, CleanConditionally: true},
+			scoring: articleScoringOptions{StripUnlikely: false, WeightClasses: false, Config: cfg},
+			clean:   articleCleanOptions{StripUnlikely: false, WeightClasses: false, CleanConditionally: true, Config: cfg},
 		},
 		{
-			scoring: articleScoringOptions{StripUnlikely: false, WeightClasses: false},
-			clean:   articleCleanOptions{StripUnlikely: false, WeightClasses: false, CleanConditionally: false},
+			scoring: articleScoringOptions{StripUnlikely: false, WeightClasses: false, Config: cfg},
+			clean:   articleCleanOptions{StripUnlikely: false, WeightClasses: false, CleanConditionally: false, Config: cfg},
 		},
 	}
 	for _, attempt := range attempts {

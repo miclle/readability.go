@@ -11,6 +11,7 @@ import (
 
 type conditionOptions struct {
 	WeightClasses bool
+	Config        parserConfig
 }
 
 func cleanConditionally(root *goquery.Selection, tag string, options conditionOptions) {
@@ -87,11 +88,11 @@ func shouldRemoveConditionally(s *goquery.Selection, tag string, options conditi
 
 	p := s.Find("p").Length()
 	img := s.Find("img").Length()
-	media := preservableMediaCount(s)
+	media := preservableMediaCount(s, options.Config)
 	li := s.Find("li").Length() - 100
 	input := s.Find("input").Length()
 	headingDensity := textDensity(s, []string{"h1", "h2", "h3", "h4", "h5", "h6"})
-	embedCount := removableEmbedCount(s)
+	embedCount := removableEmbedCount(s, options.Config)
 	contentLength := len([]rune(text))
 	density := linkDensity(s)
 	textishTags := []string{"span", "li", "td", "address", "blockquote", "dd", "div", "dl", "dt", "figcaption", "h1", "h2", "h3", "h4", "h5", "h6", "p", "pre", "time"}

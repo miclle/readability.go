@@ -8,13 +8,14 @@ import (
 	xhtml "golang.org/x/net/html"
 )
 
-func bestArticleCandidate(doc *goquery.Document, title string) *goquery.Selection {
-	return bestArticleCandidateWithOptions(doc, title, articleScoringOptions{StripUnlikely: true, WeightClasses: true})
+func bestArticleCandidate(doc *goquery.Document, title string, cfg parserConfig) *goquery.Selection {
+	return bestArticleCandidateWithOptions(doc, title, articleScoringOptions{StripUnlikely: true, WeightClasses: true, Config: cfg})
 }
 
 type articleScoringOptions struct {
 	StripUnlikely bool
 	WeightClasses bool
+	Config        parserConfig
 }
 
 func bestArticleCandidateWithOptions(doc *goquery.Document, title string, options articleScoringOptions) *goquery.Selection {
@@ -70,8 +71,12 @@ func bestArticleCandidateWithOptions(doc *goquery.Document, title string, option
 		if !inserted {
 			topCandidates = append(topCandidates, candidate)
 		}
-		if len(topCandidates) > 5 {
-			topCandidates = topCandidates[:5]
+		nbTop := options.Config.nbTopCandidates
+		if nbTop <= 0 {
+			nbTop = 5
+		}
+		if len(topCandidates) > nbTop {
+			topCandidates = topCandidates[:nbTop]
 		}
 	}
 

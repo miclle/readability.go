@@ -68,7 +68,7 @@ func isLegacyMainTableCell(s *goquery.Selection) bool {
 	return linkDensity(s) < 0.65
 }
 
-func cleanLegacyTableCandidate(article *goquery.Selection) {
+func cleanLegacyTableCandidate(article *goquery.Selection, cfg parserConfig) {
 	replaceJavascriptLinks(article)
 	unwrapSingleCellTables(article)
 	unwrapSingleCellNestedTablesAsDiv(article)
@@ -78,9 +78,9 @@ func cleanLegacyTableCandidate(article *goquery.Selection) {
 	})
 	unwrapLegacySidebarParagraphs(article)
 	article.Find("*").Each(func(_ int, s *goquery.Selection) {
-		cleanPresentationAttributes(s.Get(0))
+		cleanPresentationAttributes(s.Get(0), cfg)
 	})
-	cleanPresentationAttributes(article.Get(0))
+	cleanPresentationAttributes(article.Get(0), cfg)
 	article.Find("p").Each(func(_ int, s *goquery.Selection) {
 		if normalizeSpace(s.Text()) == "" && s.Find("img, audio").Length() == 0 {
 			s.Remove()

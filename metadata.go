@@ -111,12 +111,21 @@ type metadata struct {
 	PublishedTime string
 }
 
+// extractMetadata is preserved for tests; production callers should use
+// extractMetadataConfig so options like DisableJSONLD are honored.
 func extractMetadata(data []byte) metadata {
+	return extractMetadataConfig(data, defaultParserConfig())
+}
+
+func extractMetadataConfig(data []byte, cfg parserConfig) metadata {
 	doc, err := goquery.NewDocumentFromReader(bytes.NewReader(data))
 	if err != nil {
 		return metadata{}
 	}
-	result := extractJSONLDMetadata(doc)
+	var result metadata
+	if !cfg.disableJSONLD {
+		result = extractJSONLDMetadata(doc)
+	}
 	values := collectMetaValues(doc)
 
 	result.Title = firstNonEmptyString(

@@ -87,7 +87,7 @@ func fixLazyImages(root *goquery.Selection) {
 	})
 }
 
-func preservableMediaCount(s *goquery.Selection) int {
+func preservableMediaCount(s *goquery.Selection, cfg parserConfig) int {
 	count := 0
 	s.Find("iframe, video, audio, object, embed").Each(func(_ int, media *goquery.Selection) {
 		node := media.Get(0)
@@ -104,7 +104,7 @@ func preservableMediaCount(s *goquery.Selection) int {
 			return
 		}
 		for _, attr := range node.Attr {
-			if videoURLRE.MatchString(attr.Val) {
+			if cfg.videoAllowed(attr.Val) {
 				count++
 				return
 			}
@@ -113,18 +113,18 @@ func preservableMediaCount(s *goquery.Selection) int {
 	return count
 }
 
-func removableEmbedCount(s *goquery.Selection) int {
+func removableEmbedCount(s *goquery.Selection, cfg parserConfig) int {
 	count := 0
 	s.Find("object, embed, iframe").Each(func(_ int, embed *goquery.Selection) {
 		allowed := false
 		for _, attr := range embed.Get(0).Attr {
-			if videoURLRE.MatchString(attr.Val) {
+			if cfg.videoAllowed(attr.Val) {
 				allowed = true
 				break
 			}
 		}
 		if !allowed {
-			if html, err := selectionInnerHTML(embed); err == nil && videoURLRE.MatchString(html) {
+			if html, err := selectionInnerHTML(embed); err == nil && cfg.videoAllowed(html) {
 				allowed = true
 			}
 		}

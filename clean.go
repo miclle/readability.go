@@ -7,11 +7,20 @@ import (
 	xhtml "golang.org/x/net/html"
 )
 
+// cleanArticleCandidate cleans the candidate using the parser default config.
+// Retained for tests and external callers; production paths use
+// cleanArticleCandidateConfig.
 func cleanArticleCandidate(article *goquery.Selection) {
+	cleanArticleCandidateConfig(article, defaultParserConfig())
+}
+
+// cleanArticleCandidateConfig cleans the candidate using the supplied config.
+func cleanArticleCandidateConfig(article *goquery.Selection, cfg parserConfig) {
 	cleanArticleCandidateWithOptions(article, articleCleanOptions{
 		StripUnlikely:      true,
 		WeightClasses:      true,
 		CleanConditionally: true,
+		Config:             cfg,
 	})
 }
 
@@ -19,20 +28,21 @@ type articleCleanOptions struct {
 	StripUnlikely      bool
 	WeightClasses      bool
 	CleanConditionally bool
+	Config             parserConfig
 }
 
 func cleanArticleCandidateWithOptions(article *goquery.Selection, options articleCleanOptions) {
 	removeDisallowedArticleElements(article)
 	applyEarlyCompatibilityCleanups(article)
-	cleanEmbeddedMedia(article)
+	cleanEmbeddedMedia(article, options.Config)
 	removeArticleNoiseBlocks(article)
 	normalizeArticleMarkup(article)
 	if options.CleanConditionally {
-		applyConditionalCleanups(article, conditionOptions{WeightClasses: options.WeightClasses})
+		applyConditionalCleanups(article, conditionOptions{WeightClasses: options.WeightClasses, Config: options.Config})
 	}
 	applyLateCompatibilityCleanups(article)
 	if options.StripUnlikely {
-		removeUnlikelyArticleElements(article)
+		removeUnlikelyArticleElements(article, options.Config)
 	}
 	removeEmptyParagraphs(article)
 	finalizeArticleStructure(article)
@@ -56,9 +66,9 @@ func applyEarlyCompatibilityCleanups(article *goquery.Selection) {
 	replaceJavascriptLinks(article)
 }
 
-func cleanEmbeddedMedia(article *goquery.Selection) {
+func cleanEmbeddedMedia(article *goquery.Selection, cfg parserConfig) {
 	article.Find("iframe, object, embed").Each(func(_ int, s *goquery.Selection) {
-		if !isAllowedEmbeddedMedia(s) {
+		if !isAllowedEmbeddedMedia(s, cfg) {
 			s.Remove()
 		}
 	})
@@ -69,18 +79,18 @@ func cleanEmbeddedMedia(article *goquery.Selection) {
 	})
 }
 
-func isAllowedEmbeddedMedia(s *goquery.Selection) bool {
+func isAllowedEmbeddedMedia(s *goquery.Selection, cfg parserConfig) bool {
 	node := s.Get(0)
 	if node == nil {
 		return false
 	}
 	for _, attr := range node.Attr {
-		if videoURLRE.MatchString(attr.Val) {
+		if cfg.videoAllowed(attr.Val) {
 			return true
 		}
 	}
 	if tagNameNode(node) == "object" {
-		if html, err := selectionInnerHTML(s); err == nil && videoURLRE.MatchString(html) {
+		if html, err := selectionInnerHTML(s); err == nil && cfg.videoAllowed(html) {
 			return true
 		}
 	}
@@ -192,7 +202,7 @@ func applyLateCompatibilityCleanups(article *goquery.Selection) {
 	restoreContinuationLinks(article)
 }
 
-func removeUnlikelyArticleElements(article *goquery.Selection) {
+func removeUnlikelyArticleElements(article *goquery.Selection, cfg parserConfig) {
 	article.Find("*").Each(func(_ int, s *goquery.Selection) {
 		classID := strings.ToLower(attr(s, "class") + " " + attr(s, "id"))
 		if attr(s, "role") == "note" {
@@ -200,7 +210,7 @@ func removeUnlikelyArticleElements(article *goquery.Selection) {
 			return
 		}
 		if attr(s, "id") == "comments" || attr(s, "id") == "adjacent-posts" || hasAncestorNodeID(s.Get(0), "comments") {
-			cleanPresentationAttributes(s.Get(0))
+			cleanPresentationAttributes(s.Get(0), cfg)
 			return
 		}
 		text := innerText(s)
@@ -216,9 +226,9 @@ func removeUnlikelyArticleElements(article *goquery.Selection) {
 			s.Remove()
 			return
 		}
-		cleanPresentationAttributes(s.Get(0))
+		cleanPresentationAttributes(s.Get(0), cfg)
 	})
-	cleanPresentationAttributes(article.Get(0))
+	cleanPresentationAttributes(article.Get(0), cfg)
 }
 
 func removeEmptyParagraphs(article *goquery.Selection) {
@@ -252,7 +262,7 @@ func wrapLeadingEmphasisContent(root *goquery.Selection) {
 	})
 }
 
-func cleanPresentationAttributes(node *xhtml.Node) {
+func cleanPresentationAttributes(node *xhtml.Node, cfg parserConfig) {
 	if node == nil || node.Type != xhtml.ElementNode {
 		return
 	}
@@ -267,7 +277,7 @@ func cleanPresentationAttributes(node *xhtml.Node) {
 	for _, attr := range node.Attr {
 		key := strings.ToLower(attr.Key)
 		if key == "class" {
-			if className := preservedClassList(attr.Val); className != "" {
+			if className := preservedClassList(attr.Val, cfg); className != "" {
 				attr.Val = className
 				kept = append(kept, attr)
 			}
@@ -299,10 +309,20 @@ func normalizeInlineSVGAttributeCasing(node *xhtml.Node) {
 	}
 }
 
-func preservedClassList(className string) string {
+func preservedClassList(className string, cfg parserConfig) string {
+	if cfg.keepClasses {
+		return strings.TrimSpace(className)
+	}
+	allow := make(map[string]struct{}, len(cfg.classesToPreserve)+1)
+	allow["page"] = struct{}{}
+	for _, class := range cfg.classesToPreserve {
+		if class != "" {
+			allow[class] = struct{}{}
+		}
+	}
 	var preserved []string
 	for _, class := range strings.Fields(className) {
-		if class == "caption" || class == "page" {
+		if _, ok := allow[class]; ok {
 			preserved = append(preserved, class)
 		}
 	}

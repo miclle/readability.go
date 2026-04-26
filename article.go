@@ -2,7 +2,9 @@ package readability
 
 import (
 	"bytes"
+	"errors"
 	"io"
+	"regexp"
 	"strings"
 
 	"github.com/PuerkitoBio/goquery"
@@ -22,11 +24,86 @@ type Article struct {
 	PublishedTime string
 }
 
-// Options controls parser behavior.
+// Options controls parser behavior. Mirrors the public knobs of mozilla/readability.
 type Options struct {
 	// CharThreshold is the minimum extracted text length required to return an
 	// article. A zero value disables the threshold.
 	CharThreshold int
+
+	// ClassesToPreserve lists CSS class names that survive cleanup even when
+	// KeepClasses is false. The wrapper class "page" is always preserved.
+	// A nil slice falls back to ["caption"] to match mozilla/readability.
+	ClassesToPreserve []string
+
+	// KeepClasses, when true, preserves all class attributes during cleanup.
+	KeepClasses bool
+
+	// NbTopCandidates caps how many top-scoring candidates are tracked while
+	// scoring. A zero or negative value falls back to 5.
+	NbTopCandidates int
+
+	// DisableJSONLD skips JSON-LD metadata extraction when true.
+	DisableJSONLD bool
+
+	// AllowedVideoRegex overrides the built-in allow-list used to recognize
+	// embeddable video URLs. A nil value falls back to the built-in regex.
+	AllowedVideoRegex *regexp.Regexp
+
+	// MaxElemsToParse aborts parsing when the document contains more than
+	// this many elements. Zero or negative disables the limit.
+	MaxElemsToParse int
+}
+
+// ErrTooManyElements is returned when MaxElemsToParse is exceeded.
+var ErrTooManyElements = errors.New("readability: document exceeds MaxElemsToParse")
+
+// parserConfig is the resolved, internal form of Options.
+type parserConfig struct {
+	classesToPreserve []string
+	keepClasses       bool
+	nbTopCandidates   int
+	disableJSONLD     bool
+	allowedVideoRegex *regexp.Regexp
+	maxElemsToParse   int
+}
+
+// defaultClassesToPreserve mirrors mozilla/readability's default of ["caption"].
+// "page" is always preserved separately because it is applied to the wrapper
+// div produced by this parser.
+var defaultClassesToPreserve = []string{"caption"}
+
+func newParserConfig(options *Options) parserConfig {
+	cfg := parserConfig{
+		classesToPreserve: defaultClassesToPreserve,
+		nbTopCandidates:   5,
+	}
+	if options == nil {
+		return cfg
+	}
+	if options.ClassesToPreserve != nil {
+		cfg.classesToPreserve = options.ClassesToPreserve
+	}
+	cfg.keepClasses = options.KeepClasses
+	if options.NbTopCandidates > 0 {
+		cfg.nbTopCandidates = options.NbTopCandidates
+	}
+	cfg.disableJSONLD = options.DisableJSONLD
+	cfg.allowedVideoRegex = options.AllowedVideoRegex
+	if options.MaxElemsToParse > 0 {
+		cfg.maxElemsToParse = options.MaxElemsToParse
+	}
+	return cfg
+}
+
+func (cfg parserConfig) videoAllowed(value string) bool {
+	if cfg.allowedVideoRegex != nil {
+		return cfg.allowedVideoRegex.MatchString(value)
+	}
+	return videoURLRE.MatchString(value)
+}
+
+func defaultParserConfig() parserConfig {
+	return newParserConfig(nil)
 }
 
 // FromReader extracts the main article from an HTML stream.
@@ -36,17 +113,23 @@ func FromReader(r io.Reader, pageURL string, options *Options) (Article, error) 
 		return Article{}, err
 	}
 
+	cfg := newParserConfig(options)
+
 	doc, err := goquery.NewDocumentFromReader(bytes.NewReader(data))
 	if err != nil {
 		return Article{}, err
 	}
 
-	metadata := extractMetadata(data)
+	if cfg.maxElemsToParse > 0 && doc.Find("*").Length() > cfg.maxElemsToParse {
+		return Article{}, ErrTooManyElements
+	}
+
+	metadata := extractMetadataConfig(data, cfg)
 	title := fallbackTitle(doc)
 	if metadata.Title != "" {
 		title = metadata.Title
 	}
-	content := extractArticleContent(doc, pageURL, title)
+	content := extractArticleContent(doc, pageURL, title, cfg)
 	rawTextContent := strings.TrimSpace(content.Text())
 	if options != nil && options.CharThreshold > 0 && len([]rune(rawTextContent)) < options.CharThreshold {
 		return Article{}, nil
