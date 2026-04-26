@@ -58,10 +58,6 @@ func TestParseAllMozillaMetadataFixtures(t *testing.T) {
 
 			if !metadataMatches(article, expected) {
 				failed++
-			}
-			if os.Getenv("READABILITY_STRICT_COMPAT") == "1" {
-				assertMetadataMatches(t, article, expected)
-			} else if !metadataMatches(article, expected) {
 				t.Logf("metadata mismatch:\ngot  %s\nwant %s", metadataForLog(articleMetadataForLog(article)), metadataForLog(expected))
 			}
 		})

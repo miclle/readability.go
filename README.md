@@ -23,8 +23,6 @@ fixtures into production logic.
 - Run `make test` for the default test suite.
 - Run `make compat-test` before changing parser, scoring, cleaning, or metadata
   behavior to inspect benchmark drift.
-- `make strict-compat-test` is kept as a non-failing compatibility notice; exact
-  fixture matching is not a maintenance gate for this general-purpose library.
 - Run `make vet` for static checks.
 
 ## Implementation Layout
