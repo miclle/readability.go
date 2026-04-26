@@ -75,12 +75,21 @@ func hasAncestorNodeID(node *xhtml.Node, id string) bool {
 	return false
 }
 
-func hasAncestorNodeAttr(node *xhtml.Node, key, value string) bool {
+func hasAncestorNodeAttrMatching(node *xhtml.Node, key string, match func(string) bool) bool {
 	for current := node.Parent; current != nil; current = current.Parent {
 		if current.Type != xhtml.ElementNode {
 			continue
 		}
-		if nodeAttr(current, key) == value {
+		if match(nodeAttr(current, key)) {
+			return true
+		}
+	}
+	return false
+}
+
+func hasAncestorNodeMatching(node *xhtml.Node, match func(*xhtml.Node) bool) bool {
+	for current := node.Parent; current != nil; current = current.Parent {
+		if current.Type == xhtml.ElementNode && match(current) {
 			return true
 		}
 	}

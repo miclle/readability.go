@@ -35,7 +35,8 @@ func IsProbablyReaderable(r io.Reader, options ...ReaderableOptions) (bool, erro
 
 	score := 0.0
 	readerable := false
-	doc.Find("p, pre, article").EachWithBreak(func(_ int, s *goquery.Selection) bool {
+	nodes := readerableCandidates(doc)
+	nodes.EachWithBreak(func(_ int, s *goquery.Selection) bool {
 		if !isProbablyVisible(s) {
 			return true
 		}
@@ -61,11 +62,33 @@ func IsProbablyReaderable(r io.Reader, options ...ReaderableOptions) (bool, erro
 	return readerable, nil
 }
 
+func readerableCandidates(doc *goquery.Document) *goquery.Selection {
+	nodes := doc.Find("p, pre, article")
+	doc.Find("div > br").Each(func(_ int, br *goquery.Selection) {
+		parent := br.Parent()
+		if parent.Length() == 0 {
+			return
+		}
+		alreadyIncluded := false
+		nodes.EachWithBreak(func(_ int, candidate *goquery.Selection) bool {
+			if candidate.Get(0) == parent.Get(0) {
+				alreadyIncluded = true
+				return false
+			}
+			return true
+		})
+		if !alreadyIncluded {
+			nodes = nodes.AddSelection(parent)
+		}
+	})
+	return nodes
+}
+
 func isProbablyVisible(s *goquery.Selection) bool {
 	style := strings.ToLower(attr(s, "style"))
 	_, hidden := s.Attr("hidden")
 	return !strings.Contains(style, "display:none") &&
 		!strings.Contains(style, "display: none") &&
 		!hidden &&
-		strings.ToLower(attr(s, "aria-hidden")) != "true"
+		(strings.ToLower(attr(s, "aria-hidden")) != "true" || hasFallbackImageClass(s))
 }

@@ -15,4 +15,5 @@ var (
 	imageSrcsetRE       = regexp.MustCompile(`(?i)\.(jpg|jpeg|png|webp)\s+\d`)
 	srcsetURLRE         = regexp.MustCompile(`(\S+)(\s+[\d.]+[xw])?(\s*(?:,|$))`)
 	leadingDateRE       = regexp.MustCompile(`^\d{1,2}[./]\d{1,2}[./]\d{2,4}\s+\d{1,2}:\d{2}$`)
+	hashURLRE           = regexp.MustCompile(`^#.+`)
 )

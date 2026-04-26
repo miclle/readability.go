@@ -22,8 +22,7 @@ type Article struct {
 	PublishedTime string
 }
 
-// Options controls parser behavior. It mirrors Mozilla Readability options as
-// the Go implementation grows into full fixture compatibility.
+// Options controls parser behavior.
 type Options struct {
 	// CharThreshold is the minimum extracted text length required to return an
 	// article. A zero value disables the threshold.

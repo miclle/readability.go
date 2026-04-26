@@ -27,7 +27,6 @@ func removeDisallowedArticleElements(article *goquery.Selection) {
 		return attr(s, "id") != "adjacent-posts" &&
 			attr(s, "role") != "tablist" && s.Find(`[role="tablist"]`).Length() == 0
 	}).Remove()
-	article.Find("object, embed").Remove()
 }
 
 func applyEarlyCompatibilityCleanups(article *goquery.Selection) {
@@ -35,14 +34,13 @@ func applyEarlyCompatibilityCleanups(article *goquery.Selection) {
 	normalizeFallbackContentContainers(article)
 	normalizeEntryHeaders(article)
 	wrapAttachmentImageLinks(article)
-	restoreStoryContinueLinks(article)
+	restoreContinuationLinks(article)
 	replaceJavascriptLinks(article)
 }
 
 func cleanEmbeddedMedia(article *goquery.Selection) {
-	article.Find("iframe").Each(func(_ int, s *goquery.Selection) {
-		src := attr(s, "src")
-		if !videoURLRE.MatchString(src) {
+	article.Find("iframe, object, embed").Each(func(_ int, s *goquery.Selection) {
+		if !isAllowedEmbeddedMedia(s) {
 			s.Remove()
 		}
 	})
@@ -53,13 +51,31 @@ func cleanEmbeddedMedia(article *goquery.Selection) {
 	})
 }
 
+func isAllowedEmbeddedMedia(s *goquery.Selection) bool {
+	node := s.Get(0)
+	if node == nil {
+		return false
+	}
+	for _, attr := range node.Attr {
+		if videoURLRE.MatchString(attr.Val) {
+			return true
+		}
+	}
+	if tagNameNode(node) == "object" {
+		if html, err := selectionInnerHTML(s); err == nil && videoURLRE.MatchString(html) {
+			return true
+		}
+	}
+	return false
+}
+
 func removeArticleNoiseBlocks(article *goquery.Selection) {
 	article.Find("*").Each(func(_ int, s *goquery.Selection) {
 		if isRelatedReadingBlock(s) {
 			s.Remove()
 			return
 		}
-		if attr(s, "id") == "whats-next" {
+		if isFollowUpNavigationBlock(s) {
 			s.Remove()
 			return
 		}
@@ -142,7 +158,7 @@ func applyLateCompatibilityCleanups(article *goquery.Selection) {
 	normalizeSingleChildContainers(article)
 	unwrapSingleParagraphContainers(article)
 	removeEmptyMediaHeadings(article)
-	restoreStoryContinueLinks(article)
+	restoreContinuationLinks(article)
 }
 
 func removeUnlikelyArticleElements(article *goquery.Selection) {
@@ -295,7 +311,14 @@ func isLeadingMetadataBlock(s *goquery.Selection) bool {
 	}
 	lower := strings.ToLower(text)
 	return s.Find("time").Length() > 0 &&
-		(strings.Contains(lower, "mis à jour") || strings.Contains(lower, " par ") || strings.Contains(lower, "le monde"))
+		(strings.Contains(lower, "mis à jour") || strings.Contains(lower, " par "))
+}
+
+func isFollowUpNavigationBlock(s *goquery.Selection) bool {
+	classID := strings.ToLower(attr(s, "class") + " " + attr(s, "id"))
+	return strings.Contains(classID, "whats-next") ||
+		strings.Contains(classID, "what-next") ||
+		strings.Contains(classID, "read-next")
 }
 
 func convertTextOnlyDivsToParagraphs(root *goquery.Selection) {

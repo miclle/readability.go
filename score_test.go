@@ -1,6 +1,7 @@
 package readability
 
 import (
+	"math"
 	"testing"
 
 	xhtml "golang.org/x/net/html"
@@ -38,5 +39,14 @@ func TestHasDataLoadPlaylistSiblingStopsAtParagraph(t *testing.T) {
 
 	if hasDataLoadPlaylistSibling(svg) {
 		t.Fatal("paragraph boundary should stop playlist search")
+	}
+}
+
+func TestLinkDensityDiscountsHashLinks(t *testing.T) {
+	doc := mustTestDocument(t, `<div>abcdefghij<a href="#section">klmnopqrst</a></div>`)
+
+	got := linkDensity(doc.Find("div").First())
+	if math.Abs(got-0.15) > 0.0001 {
+		t.Fatalf("linkDensity = %f, want 0.15", got)
 	}
 }

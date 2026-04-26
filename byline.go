@@ -53,8 +53,7 @@ func isBylineCandidate(s *goquery.Selection) bool {
 
 func isRelatedReadingBlock(s *goquery.Selection) bool {
 	classID := strings.ToLower(strings.ReplaceAll(attr(s, "class")+" "+attr(s, "id"), "-", ""))
-	return strings.Contains(classID, "relatedcontent") ||
-		strings.EqualFold(normalizeSpace(s.Text()), "Other People Are Reading")
+	return strings.Contains(classID, "relatedcontent")
 }
 
 func isAuthorBioSection(s *goquery.Selection) bool {

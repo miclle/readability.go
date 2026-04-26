@@ -36,7 +36,7 @@ func shouldRemoveConditionally(s *goquery.Selection, tag string) bool {
 	if attr(s, "id") == "comments" || hasAncestorNodeID(s.Get(0), "comments") {
 		return false
 	}
-	if isStoryContinuation(s) {
+	if isContinuationMarker(s) {
 		return false
 	}
 	if strings.Contains(classID, "thumbcaption") && strings.Contains(strings.ToLower(text), "is one of") && s.Find("sup").Length() > 0 {

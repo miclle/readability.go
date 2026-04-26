@@ -75,9 +75,6 @@ func firstStructuredSourceExcerpt(data []byte, title string) string {
 		return topic
 	}
 	if doc.Find("body.mediawiki, #mw-content-text").Length() > 0 {
-		if strings.HasPrefix(title, "List of ") {
-			return firstSelectionText(doc.Find("#siteSub").First())
-		}
 		if coordinates := firstSelectionText(doc.Find("#coordinates").First()); coordinates != "" {
 			return coordinates
 		}
@@ -85,10 +82,7 @@ func firstStructuredSourceExcerpt(data []byte, title string) string {
 		doc.Find("#mw-content-text p").EachWithBreak(func(_ int, s *goquery.Selection) bool {
 			text := strings.TrimSpace(s.Text())
 			normalized := normalizeSpace(text)
-			if normalized == "" ||
-				strings.HasPrefix(normalized, "See also:") ||
-				strings.HasPrefix(normalized, "For matrices with") ||
-				strings.HasPrefix(normalized, "This article is about") {
+			if normalized == "" || isMediaWikiLeadNoise(s, normalized) {
 				return true
 			}
 			excerpt = text
@@ -97,6 +91,19 @@ func firstStructuredSourceExcerpt(data []byte, title string) string {
 		return excerpt
 	}
 	return ""
+}
+
+func isMediaWikiLeadNoise(s *goquery.Selection, text string) bool {
+	classID := strings.ToLower(attr(s, "class") + " " + attr(s, "id"))
+	if strings.Contains(classID, "hatnote") ||
+		strings.Contains(classID, "shortdescription") ||
+		strings.Contains(classID, "navigation-not-searchable") {
+		return true
+	}
+	lower := strings.ToLower(text)
+	return strings.HasPrefix(lower, "see also:") ||
+		strings.HasPrefix(lower, "this article is about") ||
+		(strings.HasPrefix(lower, "for ") && strings.Contains(lower, ", see "))
 }
 
 func firstMathHeavyShortExcerpt(doc *goquery.Document) string {

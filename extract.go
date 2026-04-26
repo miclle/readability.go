@@ -26,9 +26,7 @@ func extractArticleContent(doc *goquery.Document, pageURL string, title string) 
 		cleanLegacyTableCandidate(legacy)
 		return legacy
 	}
-	if explicit := doc.Find(".pane-aclu-components-description").FilterFunction(func(_ int, s *goquery.Selection) bool {
-		return len([]rune(innerText(s))) >= 100
-	}).First(); explicit.Length() > 0 {
+	if explicit := explicitArticleDescription(doc); explicit.Length() > 0 {
 		candidate := wrapArticleSelection(explicit)
 		cleanArticleCandidate(candidate)
 		return candidate
@@ -158,7 +156,7 @@ func fallbackArticleSelection(doc *goquery.Document) *goquery.Selection {
 		".article-content",
 		".entry-content",
 		".post-body",
-		".pane-aclu-components-description",
+		`[class*="components-description"]`,
 		`[role="article"]`,
 		"article",
 	} {
@@ -184,6 +182,12 @@ func bestSelectionByTextLength(nodes *goquery.Selection) *goquery.Selection {
 		return &goquery.Selection{}
 	}
 	return best
+}
+
+func explicitArticleDescription(doc *goquery.Document) *goquery.Selection {
+	return doc.Find(`[class*="components-description"], [class*="article-description"]`).FilterFunction(func(_ int, s *goquery.Selection) bool {
+		return len([]rune(innerText(s))) >= 100
+	}).First()
 }
 
 func isPrintMessageSelection(s *goquery.Selection) bool {

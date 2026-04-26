@@ -51,6 +51,21 @@ func TestIsProbablyReaderableRejectsNonArticleContent(t *testing.T) {
 	}
 }
 
+func TestIsProbablyReaderableIncludesDivsWithBreaks(t *testing.T) {
+	html := `<html><body><div>First line of an article-like block<br><br>Second line with enough useful text to pass.</div></body></html>`
+
+	ok, err := IsProbablyReaderable(strings.NewReader(html), ReaderableOptions{
+		MinContentLength: 20,
+		MinScore:         1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !ok {
+		t.Fatal("div with br-separated text should be readerable")
+	}
+}
+
 func TestIsProbablyReaderableReturnsReaderError(t *testing.T) {
 	ok, err := IsProbablyReaderable(failingReader{})
 	if err == nil {

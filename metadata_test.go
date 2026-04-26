@@ -65,6 +65,74 @@ func TestParseAllMozillaMetadataFixtures(t *testing.T) {
 	t.Logf("Mozilla metadata fixtures: %d passing, %d failing", len(names)-failed, failed)
 }
 
+func TestCleanTitleRemovesGenericSiteSuffixAndSectionPrefix(t *testing.T) {
+	got := cleanTitle("Chrome Developers: WebGPU ships · Example Blog")
+	if got != "WebGPU ships" {
+		t.Fatalf("cleanTitle = %q", got)
+	}
+}
+
+func TestFallbackTitleUsesSingleH1WhenTitleIsTooShort(t *testing.T) {
+	doc := mustTestDocument(t, `<html><head><title>Home</title></head><body><h1>Useful Article Title</h1></body></html>`)
+
+	got := fallbackTitle(doc)
+	if got != "Useful Article Title" {
+		t.Fatalf("fallbackTitle = %q", got)
+	}
+}
+
+func TestParselyTitleDoesNotOverrideOpenGraphTitle(t *testing.T) {
+	result := extractMetadata([]byte(`<html><head>
+		<meta property="og:title" content="Open Graph Title">
+		<meta name="parsely-title" content="Parsely Title">
+	</head></html>`))
+
+	if result.Title != "Open Graph Title" {
+		t.Fatalf("Title = %q", result.Title)
+	}
+}
+
+func TestArticleAuthorURLIsIgnored(t *testing.T) {
+	result := extractMetadata([]byte(`<html><head>
+		<meta property="article:author" content="https://example.com/authors/jane">
+	</head></html>`))
+
+	if result.Byline != "" {
+		t.Fatalf("Byline = %q", result.Byline)
+	}
+}
+
+func TestArticleAuthorURLWithSpacedPropertyIsIgnored(t *testing.T) {
+	result := extractMetadata([]byte(`<html><head>
+		<meta property="article : author" content="https://example.com/authors/jane">
+	</head></html>`))
+
+	if result.Byline != "" {
+		t.Fatalf("Byline = %q", result.Byline)
+	}
+}
+
+func TestArticleAuthorNameIsUsed(t *testing.T) {
+	result := extractMetadata([]byte(`<html><head>
+		<meta property="article:author" content="Jane Doe">
+	</head></html>`))
+
+	if result.Byline != "Jane Doe" {
+		t.Fatalf("Byline = %q", result.Byline)
+	}
+}
+
+func TestSpacedMetadataPropertyIsParsed(t *testing.T) {
+	result := extractMetadata([]byte(`<html><head>
+		<meta property="dc : title" content="Spaced Title">
+		<meta name="title" content="Fallback Title">
+	</head></html>`))
+
+	if result.Title != "Spaced Title" {
+		t.Fatalf("Title = %q", result.Title)
+	}
+}
+
 func parseFixtureForTest(t *testing.T, fixture string) Article {
 	t.Helper()
 	sourcePath := filepath.Join("testdata", "test-pages", fixture, "source.html")

@@ -135,7 +135,7 @@ func prepareArticleScoring(doc *goquery.Document, title string) {
 			removeNode(node)
 			return
 		}
-		if isStoryContinuation(s) || attr(s, "id") == "comments" || attr(s, "id") == "adjacent-posts" {
+		if isContinuationMarker(s) || attr(s, "id") == "comments" || attr(s, "id") == "adjacent-posts" {
 			return
 		}
 		if (tag == "h1" || tag == "h2") && headerDuplicatesTitle(s, title) && (!removedTitleHeader || shortTitleSubsetHeader(s, title)) {
@@ -249,8 +249,6 @@ func buildArticleContent(top *xhtml.Node, scores map[*xhtml.Node]float64, topSco
 			}
 			if scores[sibling]+contentBonus >= threshold {
 				appendSibling = true
-			} else if nodeAttr(sibling, "id") == "smartassetcontainer" || nodeAttr(sibling, "id") == "adjacent-posts" || nodeAttr(sibling, "id") == "comments" {
-				appendSibling = true
 			} else if tagNameNode(sibling) == "hr" {
 				appendSibling = true
 			} else if tagNameNode(sibling) == "svg" && hasDataLoadPlaylistSibling(sibling) {
@@ -330,11 +328,15 @@ func linkDensity(s *goquery.Selection) float64 {
 	if textLength == 0 {
 		return 0
 	}
-	linkLength := 0
+	linkLength := 0.0
 	s.Find("a").Each(func(_ int, link *goquery.Selection) {
-		linkLength += len([]rune(innerText(link)))
+		coefficient := 1.0
+		if hashURLRE.MatchString(attr(link, "href")) {
+			coefficient = 0.3
+		}
+		linkLength += float64(len([]rune(innerText(link)))) * coefficient
 	})
-	return float64(linkLength) / float64(textLength)
+	return linkLength / float64(textLength)
 }
 
 func innerText(s *goquery.Selection) string {

@@ -41,26 +41,45 @@ func TestBylineSemanticHelpers(t *testing.T) {
 	}
 }
 
-func TestRestoreStoryContinueLinksAddsMissingAnchor(t *testing.T) {
+func TestExpandedBylineActivityUsesSemanticActivityValue(t *testing.T) {
+	doc := mustTestDocument(t, `<article data-activity-map="article-byline-footer"><span id="name">Jane</span></article>`)
+
+	if !isExpandedBylineActivity(doc.Find("#name")) {
+		t.Fatal("expected byline activity to be detected from ancestor activity map")
+	}
+}
+
+func TestCollectionHighlightsDetectionUsesClassAndIDMeaning(t *testing.T) {
+	doc := mustTestDocument(t, `<section id="feature-collection" class="story-highlights"><p id="item">Story</p></section>`)
+
+	if !isInsideCollectionHighlights(doc.Find("#item")) {
+		t.Fatal("expected collection highlight ancestor to be detected")
+	}
+	if !containsCollectionHighlights(doc.Selection) {
+		t.Fatal("expected collection highlights descendant to be detected")
+	}
+}
+
+func TestRestoreContinuationLinksAddsMissingAnchorForMatchingTargets(t *testing.T) {
 	doc := mustTestDocument(t, `
 		<article>
-			<p><a href="#story-continues-1">Continue reading below</a></p>
-			<section><div id="story-continues-2">Rest of story</div></section>
+			<p><a href="#chapter-break-1">Continue reading below</a></p>
+			<section><div id="chapter-break-2">Rest of story</div></section>
 		</article>`)
 	root := doc.Find("article").First()
 
-	restoreStoryContinueLinks(root)
+	restoreContinuationLinks(root)
 
-	if root.Find("#story-continues-1 a[href='#story-continues-2']").Length() != 1 {
+	if root.Find("#chapter-break-1 a[href='#chapter-break-2']").Length() != 1 {
 		html, _ := root.Html()
 		t.Fatalf("missing restored story continue link in %s", html)
 	}
 }
 
-func TestNormalizeVideoPlayerContainersUnwrapsPlayer(t *testing.T) {
+func TestNormalizeVideoPlayerContainersUnwrapsGenericPlayer(t *testing.T) {
 	doc := mustTestDocument(t, `
 		<article>
-			<div id="rv-player"><div><iframe src="video"></iframe></div><p>Remove me</p></div>
+			<div id="custom-player"><div><iframe src="video"></iframe></div><p>Remove me</p></div>
 			<p>&lt; &gt;</p>
 			<p>Keep me</p>
 		</article>`)
@@ -68,7 +87,7 @@ func TestNormalizeVideoPlayerContainersUnwrapsPlayer(t *testing.T) {
 
 	normalizeVideoPlayerContainers(root)
 
-	if root.Find("#rv-player > iframe").Length() != 1 {
+	if root.Find("#custom-player > iframe").Length() != 1 {
 		html, _ := root.Html()
 		t.Fatalf("player iframe was not unwrapped in %s", html)
 	}
@@ -77,6 +96,25 @@ func TestNormalizeVideoPlayerContainersUnwrapsPlayer(t *testing.T) {
 	}
 	if !strings.Contains(root.Text(), "Keep me") {
 		t.Fatal("video player cleanup removed following content")
+	}
+}
+
+func TestCleanArticleCandidateKeepsAllowedObjectVideo(t *testing.T) {
+	doc := mustTestDocument(t, `<article>
+		<object data="//www.youtube.com/embed/example"></object>
+		<embed src="//example.com/widget"></embed>
+	</article>`)
+	article := doc.Find("article").First()
+
+	cleanArticleCandidate(article)
+
+	if article.Find("object").Length() != 1 {
+		html, _ := article.Html()
+		t.Fatalf("allowed object video was removed from %s", html)
+	}
+	if article.Find("embed").Length() != 0 {
+		html, _ := article.Html()
+		t.Fatalf("disallowed embed was kept in %s", html)
 	}
 }
 
@@ -147,6 +185,44 @@ func TestMetadataFromJSONLDUsesNameForGenericHeadline(t *testing.T) {
 	}
 	if result.SiteName != "Example News" {
 		t.Fatalf("SiteName = %q", result.SiteName)
+	}
+}
+
+func TestMetadataFromJSONLDRecognizesArticleSubtypes(t *testing.T) {
+	result := metadataFromJSONLD(map[string]any{
+		"@type":       "APIReference",
+		"headline":    "API title",
+		"description": "API summary",
+	})
+
+	if result.Title != "API title" {
+		t.Fatalf("metadataFromJSONLD = %+v", result)
+	}
+}
+
+func TestHiddenImageRequiresFallbackImageClass(t *testing.T) {
+	hidden := mustTestDocument(t, `<img aria-hidden="true" src="photo.jpg">`).Find("img").First()
+	if !isHidden(hidden) {
+		t.Fatal("aria-hidden image without fallback class should be hidden")
+	}
+
+	fallback := mustTestDocument(t, `<img class="mwe-math-fallback-image" aria-hidden="true" src="math.png">`).Find("img").First()
+	if isHidden(fallback) {
+		t.Fatal("fallback math image should remain visible")
+	}
+}
+
+func TestStructuredExcerptSkipsMediaWikiHatnotes(t *testing.T) {
+	data := []byte(`<html><body class="mediawiki">
+		<div id="mw-content-text">
+			<p class="hatnote">For albums with similar titles, see another page.</p>
+			<p>The actual article summary starts here with enough context to describe the page.</p>
+		</div>
+	</body></html>`)
+
+	got := firstStructuredSourceExcerpt(data, "Example page")
+	if got != "The actual article summary starts here with enough context to describe the page." {
+		t.Fatalf("excerpt = %q", got)
 	}
 }
 

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	stdhtml "html"
+	"net/url"
 	"regexp"
 	"strings"
 	"unicode"
@@ -13,10 +14,20 @@ import (
 )
 
 func fallbackTitle(doc *goquery.Document) string {
-	for _, selector := range []string{"title", "h1"} {
-		if text := strings.TrimSpace(doc.Find(selector).First().Text()); text != "" {
-			return cleanTitle(text)
+	if title := strings.TrimSpace(doc.Find("title").First().Text()); title != "" {
+		cleaned := cleanTitle(title)
+		if len([]rune(cleaned)) > 150 || len([]rune(cleaned)) < 15 {
+			h1s := doc.Find("h1")
+			if h1s.Length() == 1 {
+				if h1 := strings.TrimSpace(h1s.First().Text()); h1 != "" {
+					return cleanTitle(h1)
+				}
+			}
 		}
+		return cleaned
+	}
+	if h1 := strings.TrimSpace(doc.Find("h1").First().Text()); h1 != "" {
+		return cleanTitle(h1)
 	}
 	return ""
 }
@@ -27,14 +38,16 @@ func cleanTitle(title string) string {
 	if len(parts) > 2 {
 		return strings.Join(parts[:len(parts)-1], " | ")
 	}
-	for _, sep := range []string{" – ", " - "} {
+	for _, sep := range []string{" · ", " – ", " - "} {
 		parts := strings.Split(title, sep)
-		if sep == " – " && len(parts) == 2 && len([]rune(parts[0])) >= 15 && len([]rune(parts[1])) <= 40 {
-			return parts[0]
+		if len(parts) == 2 && len([]rune(parts[0])) >= 15 && len([]rune(parts[1])) <= 40 {
+			title = parts[0]
+			break
 		}
 	}
-	if strings.Contains(title, " · V8") && strings.Contains(title, ": ") {
-		return strings.TrimSpace(strings.SplitN(title, ": ", 2)[1])
+	if before, after, ok := strings.Cut(title, ": "); ok &&
+		len([]rune(before)) <= 40 && len([]rune(after)) >= 8 {
+		return after
 	}
 	return title
 }
@@ -66,20 +79,20 @@ func extractMetadata(data []byte) metadata {
 		result.Title,
 		values["dc:title"],
 		values["dcterm:title"],
-		values["parsely-title"],
 		values["og:title"],
 		values["weibo:article:title"],
 		values["weibo:webpage:title"],
 		values["title"],
 		values["twitter:title"],
+		values["parsely-title"],
 	)
 	result.Byline = firstNonEmptyString(
 		result.Byline,
 		values["dc:creator"],
 		values["dcterm:creator"],
-		values["parsely-author"],
-		values["og:article:author"],
 		values["author"],
+		values["parsely-author"],
+		articleAuthor(values["article:author"]),
 		domByline(doc),
 	)
 	result.Excerpt = firstNonEmptyString(
@@ -111,6 +124,18 @@ func extractMetadata(data []byte) metadata {
 	result.SiteName = stdhtml.UnescapeString(result.SiteName)
 	result.PublishedTime = stdhtml.UnescapeString(result.PublishedTime)
 	return result
+}
+
+func articleAuthor(value string) string {
+	if isURL(value) {
+		return ""
+	}
+	return value
+}
+
+func isURL(value string) bool {
+	parsed, err := url.Parse(strings.TrimSpace(value))
+	return err == nil && parsed.Scheme != "" && parsed.Host != ""
 }
 
 func extractJSONLDMetadata(doc *goquery.Document) metadata {
@@ -174,8 +199,12 @@ func metadataFromJSONLD(value any) metadata {
 func isArticleJSONLD(value map[string]any) bool {
 	for _, typ := range jsonLDTypes(value["@type"]) {
 		switch strings.ToLower(typ) {
-		case "article", "newsarticle", "blogposting", "blog", "report", "reportage",
-			"scholarlyarticle", "socialmediapost", "techarticle":
+		case "article", "advertisercontentarticle", "newsarticle", "analysisnewsarticle",
+			"askpublicnewsarticle", "backgroundnewsarticle", "opinionnewsarticle",
+			"reportagenewsarticle", "reviewnewsarticle", "report", "satiricalarticle",
+			"scholarlyarticle", "medicalscholarlyarticle", "socialmediaposting",
+			"blogposting", "liveblogposting", "discussionforumposting", "techarticle",
+			"apireference", "blog", "reportage":
 			return true
 		case "organization", "website", "webpage", "breadcrumblist", "listitem",
 			"person", "videoobject", "imageobject":
@@ -259,7 +288,7 @@ func unescapeMetadataString(value string) string {
 
 func isHidden(s *goquery.Selection) bool {
 	style := strings.ToLower(attr(s, "style"))
-	if strings.EqualFold(attr(s, "aria-hidden"), "true") && tagNameNode(s.Get(0)) == "img" && attr(s, "src") != "" {
+	if strings.EqualFold(attr(s, "aria-hidden"), "true") && hasFallbackImageClass(s) {
 		return false
 	}
 	_, hidden := s.Attr("hidden")
@@ -269,6 +298,11 @@ func isHidden(s *goquery.Selection) bool {
 		strings.Contains(style, "visibility: hidden") ||
 		hidden ||
 		strings.EqualFold(attr(s, "aria-hidden"), "true")
+}
+
+func hasFallbackImageClass(s *goquery.Selection) bool {
+	className := strings.ToLower(attr(s, "class"))
+	return strings.Contains(className, "fallback-image")
 }
 
 func collectMetaValues(doc *goquery.Document) map[string]string {
@@ -281,11 +315,13 @@ func collectMetaValues(doc *goquery.Document) map[string]string {
 
 		property := attr(s, "property")
 		if property != "" {
-			fields := strings.Fields(property)
-			for i := len(fields) - 1; i >= 0; i-- {
-				if key := normalizeMetaKey(fields[i]); key != "" {
+			matches := metaPropertyRE.FindAllString(property, -1)
+			if len(matches) > 0 {
+				for _, match := range matches {
+					key := strings.ToLower(strings.ReplaceAll(match, " ", ""))
 					values[key] = strings.TrimSpace(content)
 				}
+				return
 			}
 			return
 		}
@@ -388,6 +424,7 @@ func attr(s *goquery.Selection, name string) string {
 }
 
 var whitespaceRE = regexp.MustCompile(`\s+`)
+var metaPropertyRE = regexp.MustCompile(`(?i)\s*(article|dc|dcterm|og|twitter)\s*:\s*(author|creator|description|published_time|title|site_name)\s*`)
 
 func normalizeSpace(s string) string {
 	return strings.TrimSpace(whitespaceRE.ReplaceAllString(s, " "))
