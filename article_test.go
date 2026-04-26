@@ -8,7 +8,7 @@ import (
 )
 
 func TestParseMozillaFixture001(t *testing.T) {
-	sourcePath := filepath.Join("testdata", "mozilla", "test-pages", "001", "source.html")
+	sourcePath := filepath.Join("testdata", "test-pages", "001", "source.html")
 	f, err := os.Open(sourcePath)
 	if err != nil {
 		t.Fatal(err)
@@ -41,7 +41,7 @@ func TestParseMozillaFixture001(t *testing.T) {
 }
 
 func TestIsProbablyReaderableMozillaFixture001(t *testing.T) {
-	sourcePath := filepath.Join("testdata", "mozilla", "test-pages", "001", "source.html")
+	sourcePath := filepath.Join("testdata", "test-pages", "001", "source.html")
 	f, err := os.Open(sourcePath)
 	if err != nil {
 		t.Fatal(err)

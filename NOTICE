@@ -3,7 +3,7 @@ readability.go
 This project is a Go implementation intended to be behavior-compatible with
 Mozilla Readability.
 
-Compatibility test data in testdata/mozilla/test-pages is copied from
+Compatibility test data in testdata/test-pages is copied from
 mozilla/readability:
 
   https://github.com/mozilla/readability

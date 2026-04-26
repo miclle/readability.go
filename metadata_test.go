@@ -37,7 +37,7 @@ func TestParseAllMozillaMetadataFixtures(t *testing.T) {
 		t.Skip("set READABILITY_FULL_COMPAT=1 to run all Mozilla metadata fixtures")
 	}
 
-	root := filepath.Join("testdata", "mozilla", "test-pages")
+	root := filepath.Join("testdata", "test-pages")
 	entries, err := os.ReadDir(root)
 	if err != nil {
 		t.Fatal(err)
@@ -67,7 +67,7 @@ func TestParseAllMozillaMetadataFixtures(t *testing.T) {
 
 func parseFixtureForTest(t *testing.T, fixture string) Article {
 	t.Helper()
-	sourcePath := filepath.Join("testdata", "mozilla", "test-pages", fixture, "source.html")
+	sourcePath := filepath.Join("testdata", "test-pages", fixture, "source.html")
 	f, err := os.Open(sourcePath)
 	if err != nil {
 		t.Fatal(err)
@@ -83,7 +83,7 @@ func parseFixtureForTest(t *testing.T, fixture string) Article {
 
 func readExpectedMetadataForTest(t *testing.T, fixture string) expectedMetadata {
 	t.Helper()
-	metadataPath := filepath.Join("testdata", "mozilla", "test-pages", fixture, "expected-metadata.json")
+	metadataPath := filepath.Join("testdata", "test-pages", fixture, "expected-metadata.json")
 	data, err := os.ReadFile(metadataPath)
 	if err != nil {
 		t.Fatal(err)

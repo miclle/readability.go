@@ -7,12 +7,12 @@ compatibility with [`mozilla/readability`](https://github.com/mozilla/readabilit
 
 This project is at the compatibility porting stage.
 
-- Mozilla `test/test-pages` fixtures are copied into `testdata/mozilla/test-pages`.
-- The upstream fixture source is pinned in `testdata/mozilla/UPSTREAM`.
+- Mozilla `test/test-pages` fixtures are copied into `testdata/test-pages`.
+- The upstream fixture source is pinned in `testdata/UPSTREAM`.
 - Metadata comparison is wired up for all pinned Mozilla metadata fixtures;
   the current self-contained implementation matches 130 of 130.
 - Canonical content comparison is wired up for all pinned Mozilla content
-  fixtures; 1 of 130 currently matches.
+  fixtures; the current self-contained implementation matches 130 of 130.
 - Full compatibility checks can be run with
   `READABILITY_FULL_COMPAT=1 go test -run 'TestParseAllMozilla(Metadata|Content)Fixtures'`.
 
@@ -52,9 +52,9 @@ func main() {
 
 ## Upstream Test Data
 
-Compatibility fixtures under `testdata/mozilla/test-pages` are copied from
+Compatibility fixtures under `testdata/test-pages` are copied from
 Mozilla Readability and are licensed under the Apache License, Version 2.0.
-See `NOTICE` and `testdata/mozilla/UPSTREAM` for source and copyright details.
+See `NOTICE` and `testdata/UPSTREAM` for source and copyright details.
 
 ## License
 

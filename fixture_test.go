@@ -10,7 +10,7 @@ import (
 )
 
 func TestMozillaFixtureInventory(t *testing.T) {
-	root := filepath.Join("testdata", "mozilla", "test-pages")
+	root := filepath.Join("testdata", "test-pages")
 	entries, err := os.ReadDir(root)
 	if err != nil {
 		t.Fatal(err)
@@ -36,7 +36,7 @@ func TestMozillaFixtureInventory(t *testing.T) {
 }
 
 func TestMozillaUpstreamMetadataIsPinned(t *testing.T) {
-	data, err := os.ReadFile(filepath.Join("testdata", "mozilla", "UPSTREAM"))
+	data, err := os.ReadFile(filepath.Join("testdata", "UPSTREAM"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -75,7 +75,7 @@ func TestParseAllMozillaContentFixtures(t *testing.T) {
 
 func mozillaFixtureNames(t *testing.T) []string {
 	t.Helper()
-	root := filepath.Join("testdata", "mozilla", "test-pages")
+	root := filepath.Join("testdata", "test-pages")
 	entries, err := os.ReadDir(root)
 	if err != nil {
 		t.Fatal(err)
@@ -92,7 +92,7 @@ func mozillaFixtureNames(t *testing.T) []string {
 
 func readExpectedContentForTest(t *testing.T, fixture string) string {
 	t.Helper()
-	contentPath := filepath.Join("testdata", "mozilla", "test-pages", fixture, "expected.html")
+	contentPath := filepath.Join("testdata", "test-pages", fixture, "expected.html")
 	data, err := os.ReadFile(contentPath)
 	if err != nil {
 		t.Fatal(err)
