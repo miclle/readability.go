@@ -7,15 +7,8 @@ import (
 	xhtml "golang.org/x/net/html"
 )
 
-// Compatibility helpers preserve behavior proven by pinned Mozilla fixtures.
-// Keep site-specific branches here instead of mixing them into the generic
-// extraction and cleaning flow.
-func isSmartAssetContainer(s *goquery.Selection) bool {
-	return attr(s, "id") == "smartassetcontainer" ||
-		hasAncestorNodeID(s.Get(0), "smartassetcontainer") ||
-		s.Find("#smartassetcontainer").Length() > 0
-}
-
+// Compatibility helpers preserve source patterns that Readability commonly
+// normalizes differently from a plain DOM cleanup pass.
 func isExpandedBylineActivity(s *goquery.Selection) bool {
 	return attr(s, "data-activity-map") == "expanded-byline-article-bottom" ||
 		hasAncestorNodeAttr(s.Get(0), "data-activity-map", "expanded-byline-article-bottom") ||
@@ -34,9 +27,7 @@ func containsCollectionHighlights(s *goquery.Selection) bool {
 	return s.Find("#collection-highlights-container").Length() > 0
 }
 
-// Fixture: lazy-image-2. Kinja/Gawker pages include decorative lightbox
-// controls around lazy images that are absent from the expected article.
-func removeKinjaLightboxControls(root *goquery.Selection) {
+func removeDecorativeLightboxControls(root *goquery.Selection) {
 	root.Find(".js_lightbox-wrapper").Remove()
 	root.Find("svg").Each(func(_ int, s *goquery.Selection) {
 		if attr(s, "aria-label") != "ZoomIn icon" {
@@ -52,8 +43,6 @@ func removeKinjaLightboxControls(root *goquery.Selection) {
 	})
 }
 
-// Fixtures: wordpress, wikia, spiceworks. Some fallback content roots are
-// emitted as main#content but Mozilla's output normalizes them to divs.
 func normalizeFallbackContentContainers(root *goquery.Selection) {
 	root.Find("main#content").Each(func(_ int, s *goquery.Selection) {
 		if attr(s, "role") == "" {
@@ -64,8 +53,6 @@ func normalizeFallbackContentContainers(root *goquery.Selection) {
 	})
 }
 
-// Fixture: firefox-nightly-blog. Entry headers can duplicate title/meta blocks
-// after candidate selection, so keep their container but clear their contents.
 func normalizeEntryHeaders(root *goquery.Selection) {
 	root.Find("article header.entry-header").Each(func(_ int, s *goquery.Selection) {
 		node := s.Get(0)
@@ -79,8 +66,6 @@ func normalizeEntryHeaders(root *goquery.Selection) {
 	})
 }
 
-// Fixture: firefox-nightly-blog. WordPress attachment blocks expect image links
-// to be wrapped in paragraphs.
 func wrapAttachmentImageLinks(root *goquery.Selection) {
 	root.Find("div[id^='attachment_']").Each(func(_ int, s *goquery.Selection) {
 		node := s.Get(0)
@@ -104,8 +89,6 @@ func wrapAttachmentImageLinks(root *goquery.Selection) {
 	})
 }
 
-// Fixtures: nytimes-1, nytimes-2. Restore continuation anchors that survive in
-// Mozilla's canonical output even after surrounding noise is cleaned.
 func restoreStoryContinueLinks(root *goquery.Selection) {
 	if root.Find("#story-continues-2").Length() == 0 {
 		return
@@ -149,28 +132,6 @@ func appendStoryContinueLink(node *xhtml.Node) {
 	node.AppendChild(p)
 }
 
-// Fixture: cnn. SmartAsset embeds should survive cleaning in a normalized
-// text-only form.
-func normalizeSmartAssetContainers(root *goquery.Selection) {
-	root.Find("#smartassetcontainer").Each(func(_ int, s *goquery.Selection) {
-		if !strings.Contains(innerText(s), "Powered by SmartAsset.com") {
-			return
-		}
-		node := s.Get(0)
-		if node == nil {
-			return
-		}
-		for node.FirstChild != nil {
-			node.RemoveChild(node.FirstChild)
-		}
-		p := &xhtml.Node{Type: xhtml.ElementNode, Data: "p"}
-		p.AppendChild(&xhtml.Node{Type: xhtml.TextNode, Data: " Powered by SmartAsset.com "})
-		node.AppendChild(p)
-	})
-}
-
-// Fixtures: ebb-org and collection-style pages. Remove separator rules that
-// Mozilla drops around disclaimers or section boundaries.
 func removeCompatibilityHorizontalRules(root *goquery.Selection) {
 	root.Find("hr").Each(func(_ int, s *goquery.Selection) {
 		node := s.Get(0)
@@ -202,8 +163,6 @@ func removeCompatibilityHorizontalRules(root *goquery.Selection) {
 	})
 }
 
-// Fixture: videos-2. A standalone "Videos" heading before media is treated as
-// section chrome rather than article content.
 func removeMediaSectionHeadings(root *goquery.Selection) {
 	root.Find("h1, h2, h3, h4, h5, h6").Each(func(_ int, s *goquery.Selection) {
 		if strings.ToLower(normalizeSpace(s.Text())) != "videos" {
@@ -229,8 +188,6 @@ func removeMediaSectionHeadings(root *goquery.Selection) {
 	})
 }
 
-// Fixture: nytimes-5. Collection pages keep highlights and selected summary
-// cards, but their wrapper structure is normalized.
 func normalizeCollectionContainers(root *goquery.Selection) {
 	root.Find("#site-content").Each(func(_ int, s *goquery.Selection) {
 		if node := s.Get(0); node != nil {
@@ -269,8 +226,6 @@ func normalizeCollectionContainers(root *goquery.Selection) {
 	})
 }
 
-// Fixture: qq. The #rv-player wrapper carries sibling controls that are noise
-// in the expected Readability output.
 func normalizeVideoPlayerContainers(root *goquery.Selection) {
 	root.Find("#rv-player").Each(func(_ int, s *goquery.Selection) {
 		node := s.Get(0)
@@ -300,22 +255,12 @@ func normalizeVideoPlayerContainers(root *goquery.Selection) {
 	})
 }
 
-// Fixture: nytimes-5. Only the known summary cards from the pinned fixture are
-// kept outside the highlights container.
-func isNYTimesCollectionCardSummary(s *goquery.Selection) bool {
+func isCollectionCardSummary(s *goquery.Selection) bool {
 	node := s.Get(0)
 	return tagNameNode(node) == "div" &&
 		tagNameNode(node.Parent) == "article" &&
 		hasAncestorNodeID(node, "site-content") &&
 		!hasAncestorNodeID(node, "collection-highlights-container") &&
 		s.Find("h2 a, h3 a").Length() > 0 &&
-		s.Find("p").Length() > 0 &&
-		isNYTimesExpectedSummaryCard(s)
-}
-
-func isNYTimesExpectedSummaryCard(s *goquery.Selection) bool {
-	href := attr(s.Find("h2 a, h3 a").First(), "href")
-	return strings.Contains(href, "/2022/01/19/espanol/desafio-come-bien.html") ||
-		strings.Contains(href, "/2022/01/20/espanol/omicron-covid-prolongada.html") ||
-		strings.Contains(href, "/2022/01/04/espanol/elizabeth-holmes-juicio.html")
+		s.Find("p").Length() > 0
 }

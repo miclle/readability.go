@@ -6,6 +6,8 @@ import (
 	stdhtml "html"
 	"regexp"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/PuerkitoBio/goquery"
 )
@@ -202,10 +204,21 @@ func jsonLDTypes(value any) []string {
 }
 
 func titleFromJSONLD(value map[string]any) string {
-	if nestedString(value["publisher"], "name") == "Wikimedia Foundation, Inc." {
-		return firstString(value["name"], value["headline"])
+	headline := firstString(value["headline"])
+	name := firstString(value["name"])
+	if name != "" && headline != "" && genericJSONLDHeadline(headline) {
+		return name
 	}
-	return firstString(value["headline"], value["name"])
+	return firstNonEmptyString(headline, name)
+}
+
+func genericJSONLDHeadline(headline string) bool {
+	headline = strings.TrimSpace(headline)
+	if headline == "" {
+		return false
+	}
+	first, _ := utf8.DecodeRuneInString(headline)
+	return unicode.IsLower(first) || strings.Contains(strings.ToLower(headline), " article")
 }
 
 func removeHiddenElements(root *goquery.Selection) {

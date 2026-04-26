@@ -31,7 +31,7 @@ func removeDisallowedArticleElements(article *goquery.Selection) {
 }
 
 func applyEarlyCompatibilityCleanups(article *goquery.Selection) {
-	removeKinjaLightboxControls(article)
+	removeDecorativeLightboxControls(article)
 	normalizeFallbackContentContainers(article)
 	normalizeEntryHeaders(article)
 	wrapAttachmentImageLinks(article)
@@ -138,7 +138,6 @@ func applyConditionalCleanups(article *goquery.Selection) {
 
 func applyLateCompatibilityCleanups(article *goquery.Selection) {
 	normalizeVideoPlayerContainers(article)
-	normalizeSmartAssetContainers(article)
 	convertTextOnlyDivsToParagraphs(article)
 	normalizeSingleChildContainers(article)
 	unwrapSingleParagraphContainers(article)
@@ -303,9 +302,6 @@ func convertTextOnlyDivsToParagraphs(root *goquery.Selection) {
 	root.Find("div").Each(func(_ int, s *goquery.Selection) {
 		node := s.Get(0)
 		if node == nil || node.Parent == nil || strings.HasPrefix(attr(s, "id"), "readability") {
-			return
-		}
-		if isSmartAssetContainer(s) {
 			return
 		}
 		if normalizeSpace(s.Text()) == "" || hasChildBlockElement(node) {

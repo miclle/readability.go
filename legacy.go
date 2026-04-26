@@ -7,15 +7,11 @@ import (
 	xhtml "golang.org/x/net/html"
 )
 
-// Legacy helpers cover older fixture shapes that need compatibility handling
-// but should not shape the generic extraction path.
-//
-// Fixture: hukumusume. This page uses table-based Shift_JIS-era layout where
-// the story content is split across adjacent cells instead of a modern article
-// container.
-func legacyHukumusumeSelection(doc *goquery.Document) *goquery.Selection {
-	main := doc.Find(`td[width="619"]`).First()
-	if main.Length() == 0 || !strings.Contains(doc.Text(), "福娘童話集") {
+// Legacy helpers cover older table-based layouts that need normalization but
+// should not shape the generic extraction path.
+func legacyTableArticleSelection(doc *goquery.Document) *goquery.Selection {
+	main := bestLegacyTableCell(doc)
+	if main.Length() == 0 {
 		return &goquery.Selection{}
 	}
 	mainNode := main.Get(0)
@@ -34,7 +30,28 @@ func legacyHukumusumeSelection(doc *goquery.Document) *goquery.Selection {
 	return goquery.NewDocumentFromNode(wrapper).Selection
 }
 
-func cleanLegacyHukumusumeCandidate(article *goquery.Selection) {
+func bestLegacyTableCell(doc *goquery.Document) *goquery.Selection {
+	var best *goquery.Selection
+	bestLength := 0
+	doc.Find(`td[width="619"]`).Each(func(_ int, s *goquery.Selection) {
+		node := s.Get(0)
+		if node == nil || previousElementSibling(node) == nil {
+			return
+		}
+		textLength := len([]rune(innerText(s)))
+		if textLength < 100 || textLength <= bestLength {
+			return
+		}
+		best = s
+		bestLength = textLength
+	})
+	if best == nil {
+		return &goquery.Selection{}
+	}
+	return best
+}
+
+func cleanLegacyTableCandidate(article *goquery.Selection) {
 	replaceJavascriptLinks(article)
 	unwrapSingleCellTables(article)
 	unwrapSingleCellNestedTablesAsDiv(article)

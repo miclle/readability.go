@@ -22,8 +22,8 @@ func extractArticleContent(doc *goquery.Document, pageURL string, title string) 
 	resolveDocumentURLs(doc, pageURL)
 	fallbackDoc := cloneDocument(doc)
 
-	if legacy := legacyHukumusumeSelection(doc); legacy.Length() > 0 {
-		cleanLegacyHukumusumeCandidate(legacy)
+	if legacy := legacyTableArticleSelection(doc); legacy.Length() > 0 {
+		cleanLegacyTableCandidate(legacy)
 		return legacy
 	}
 	if explicit := doc.Find(".pane-aclu-components-description").FilterFunction(func(_ int, s *goquery.Selection) bool {

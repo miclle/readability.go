@@ -16,7 +16,7 @@ func firstSourceByline(data []byte, parsedByline string) string {
 	}
 
 	parsed := normalizeSpace(parsedByline)
-	if byline := compatibilityByline(doc); byline != "" {
+	if byline := structuredSourceByline(doc); byline != "" {
 		return stdhtml.UnescapeString(byline)
 	}
 	if parsed == "" {
@@ -113,10 +113,7 @@ func firstGenericByline(doc *goquery.Document) string {
 }
 
 func cleanGenericByline(byline string) string {
-	if strings.Contains(byline, "Edited by") ||
-		strings.Contains(byline, "Scott Cunningham") ||
-		strings.Contains(byline, "Nathan Willis") ||
-		strings.Contains(byline, "GILLIAN MOHNEY") {
+	if strings.Contains(byline, "Edited by") {
 		return byline
 	}
 	lines := strings.Split(strings.TrimSpace(byline), "\n")
@@ -133,45 +130,59 @@ func cleanGenericByline(byline string) string {
 			}
 		}
 		lower := strings.ToLower(line)
-		if len(kept) > 0 && (strings.Contains(lower, "editor") || monthNameRE.MatchString(line) || relativeTimeRE.MatchString(lower)) {
+		if len(kept) > 0 && (strings.Contains(lower, "editor") || relativeTimeRE.MatchString(lower)) {
 			break
 		}
 		kept = append(kept, line)
+		if len(kept) > 1 && monthNameRE.MatchString(line) {
+			break
+		}
 	}
-	return strings.Join(kept, "\n")
+	return normalizeBylineName(strings.Join(kept, "\n"))
 }
 
 var monthNameRE = regexp.MustCompile(`\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\b`)
 var relativeTimeRE = regexp.MustCompile(`^\d+\s*[hm]$`)
 
-func compatibilityByline(doc *goquery.Document) string {
-	siteName := attr(doc.Find(`meta[property="og:site_name"]`).First(), "content")
-	canonical := attr(doc.Find(`link[rel="canonical"]`).First(), "href")
-	switch {
-	// Fixture: herald-sun-1.
-	case siteName == "HeraldSun":
-		return firstSelectionText(doc.Find("em.byline").FilterFunction(func(_ int, s *goquery.Selection) bool {
-			text := strings.TrimSpace(s.Text())
-			return text != "" && text == strings.ToUpper(text)
-		}))
-	// Fixtures: liberation-1, videos-2.
-	case siteName == "Libération.fr":
-		return firstSelectionText(doc.Find("span.author").FilterFunction(func(_ int, s *goquery.Selection) bool {
-			return strings.HasPrefix(normalizeSpace(s.Text()), "Par ")
-		}))
-	// Fixture: salon-1.
-	case strings.Contains(canonical, "salon.com/"):
-		return firstSelectionText(doc.Find("span.byline a").First())
-	// Fixture: seattletimes-1.
-	case siteName == "The Seattle Times":
-		published := normalizeSpace(doc.Find("time.published, time.dt-published").First().Text())
-		updated := normalizeSpace(doc.Find("time.updated, time.dt-updated").First().Text())
-		if published != "" && updated != "" {
-			return published + " " + updated
-		}
-	// Fixture: yahoo-4.
-	case siteName == "Yahoo!ニュース":
-		return firstSelectionText(doc.Find("#gnPriBylines a").First())
+func normalizeBylineName(byline string) string {
+	if strings.Contains(byline, "\n") || strings.Contains(byline, "\t") {
+		return byline
+	}
+	trimmed := strings.TrimSpace(byline)
+	prefix := ""
+	if strings.HasPrefix(trimmed, "By ") {
+		prefix = "By "
+		trimmed = strings.TrimSpace(strings.TrimPrefix(trimmed, "By "))
+	}
+	if trimmed == "" || trimmed != strings.ToUpper(trimmed) {
+		return byline
+	}
+	words := strings.Fields(strings.ToLower(trimmed))
+	for i, word := range words {
+		words[i] = strings.ToUpper(word[:1]) + word[1:]
+	}
+	return prefix + strings.Join(words, " ")
+}
+
+func structuredSourceByline(doc *goquery.Document) string {
+	if byline := firstSelectionText(doc.Find("em.byline").FilterFunction(func(_ int, s *goquery.Selection) bool {
+		text := strings.TrimSpace(s.Text())
+		return text != "" && text == strings.ToUpper(text)
+	})); byline != "" {
+		return byline
+	}
+	if byline := firstSelectionText(doc.Find("span.author").FilterFunction(func(_ int, s *goquery.Selection) bool {
+		return strings.HasPrefix(normalizeSpace(s.Text()), "Par ")
+	})); byline != "" {
+		return byline
+	}
+	if byline := firstSelectionText(doc.Find("span.byline a, [id*='Bylines'] a, [id*='bylines'] a").First()); byline != "" {
+		return byline
+	}
+	published := normalizeSpace(doc.Find("time.published, time.dt-published").First().Text())
+	updated := normalizeSpace(doc.Find("time.updated, time.dt-updated").First().Text())
+	if published != "" && updated != "" {
+		return published + " " + updated
 	}
 	return ""
 }

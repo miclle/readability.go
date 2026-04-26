@@ -9,22 +9,23 @@ This project is at the compatibility porting stage.
 
 - Mozilla `test/test-pages` fixtures are copied into `testdata/test-pages`.
 - The upstream fixture source is pinned in `testdata/UPSTREAM`.
-- Metadata comparison is wired up for all pinned Mozilla metadata fixtures;
-  the current self-contained implementation matches 130 of 130.
-- Canonical content comparison is wired up for all pinned Mozilla content
-  fixtures; the current self-contained implementation matches 130 of 130.
-- Full compatibility checks can be run with
+- Metadata and content comparison are wired up for all pinned Mozilla fixtures.
+- Full compatibility benchmarks can be run with
   `READABILITY_FULL_COMPAT=1 go test -run 'TestParseAllMozilla(Metadata|Content)Fixtures'`.
+- Exact fixture matching can be enforced with `READABILITY_STRICT_COMPAT=1`;
+  strict mode is intended for compatibility investigations, not for adding
+  testdata-specific logic to the library.
 
 The implementation is intentionally self-contained and does not depend on
-other Go Readability ports. Current work is focused on replacing broad
-heuristics with fixture-proven compatibility behavior from Readability.js.
+other Go Readability ports. Current work is focused on general Readability
+heuristics that are checked against upstream fixtures without hard-coding those
+fixtures into production logic.
 
 ## Development
 
 - Run `make test` for the default test suite.
-- Run `make compat-test` before changing parser, scoring, cleaning, metadata,
-  or compatibility behavior.
+- Run `make compat-test` before changing parser, scoring, cleaning, or metadata
+  behavior to inspect benchmark drift.
 - Run `make vet` for static checks.
 
 ## Implementation Layout

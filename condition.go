@@ -30,9 +30,6 @@ func cleanConditionally(root *goquery.Selection, tag string) {
 func shouldRemoveConditionally(s *goquery.Selection, tag string) bool {
 	text := innerText(s)
 	classID := strings.ToLower(attr(s, "class") + " " + attr(s, "id"))
-	if isSmartAssetContainer(s) {
-		return false
-	}
 	if attr(s, "id") == "contents" || isExpandedBylineActivity(s) {
 		return false
 	}
@@ -45,7 +42,7 @@ func shouldRemoveConditionally(s *goquery.Selection, tag string) bool {
 	if strings.Contains(classID, "thumbcaption") && strings.Contains(strings.ToLower(text), "is one of") && s.Find("sup").Length() > 0 {
 		return false
 	}
-	if isNYTimesCollectionCardSummary(s) {
+	if isCollectionCardSummary(s) {
 		return false
 	}
 	if containsCollectionHighlights(s) {

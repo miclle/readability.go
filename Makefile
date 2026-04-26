@@ -1,10 +1,13 @@
-.PHONY: test compat-test vet
+.PHONY: test compat-test strict-compat-test vet
 
 test:
 	go test ./...
 
 compat-test:
 	READABILITY_FULL_COMPAT=1 go test -run 'TestParseAllMozilla(Metadata|Content)Fixtures|TestMozilla' ./...
+
+strict-compat-test:
+	READABILITY_FULL_COMPAT=1 READABILITY_STRICT_COMPAT=1 go test -run 'TestParseAllMozilla(Metadata|Content)Fixtures|TestMozilla' ./...
 
 vet:
 	go vet ./...
