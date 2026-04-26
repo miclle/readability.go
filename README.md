@@ -38,6 +38,10 @@ allow only these documented differences while still failing on new drift:
 READABILITY_GO_JSON=/tmp/readability-json node tools/compare-upstream.mjs --all --char-threshold 1 --known-drift
 ```
 
+Only add or change known drift entries after confirming the difference is not a
+general parser bug and documenting why matching current upstream would be less
+correct for this port or would break pinned fixtures.
+
 - `firefox-nightly-blog` and `medicalnewstoday`: current upstream selects
   newsletter or print-message blocks, while the pinned fixtures and this port
   keep the article body.
