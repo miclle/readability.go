@@ -137,7 +137,6 @@ func extractMetadata(data []byte) metadata {
 		values["author"],
 		values["parsely-author"],
 		articleAuthor(values["article:author"]),
-		domByline(doc),
 	)
 	result.Excerpt = firstNonEmptyString(
 		result.Excerpt,
@@ -393,20 +392,6 @@ func applyParselyMetadata(values map[string]string, result *metadata) {
 		result.Excerpt = firstNonEmptyString(result.Excerpt, firstString(parsed["lower_deck"]))
 		result.PublishedTime = firstNonEmptyString(result.PublishedTime, firstString(parsed["pub_date"]))
 	}
-}
-
-func domByline(doc *goquery.Document) string {
-	for _, selector := range []string{
-		`[itemprop~="author"] [itemprop="name"]`,
-		`[itemprop="author"] [itemprop="name"]`,
-		`[rel="author"] [itemprop="name"]`,
-		`[rel="author"]`,
-	} {
-		if text := strings.TrimSpace(doc.Find(selector).First().Text()); text != "" {
-			return text
-		}
-	}
-	return ""
 }
 
 func normalizeMetaKey(key string) string {

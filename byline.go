@@ -16,11 +16,11 @@ func firstSourceByline(data []byte, parsedByline string) string {
 	}
 
 	parsed := normalizeSpace(parsedByline)
-	if byline := structuredSourceByline(doc); byline != "" {
-		return stdhtml.UnescapeString(byline)
-	}
 	if parsed == "" {
-		return stdhtml.UnescapeString(firstGenericByline(doc))
+		if byline := structuredSourceByline(doc); byline != "" {
+			return stdhtml.UnescapeString(byline)
+		}
+		return stdhtml.UnescapeString(firstValidSourceByline(doc))
 	}
 	var byline string
 	for _, selector := range []string{`.author_byline, .author_fmt`, `[class~="byline"], [class*="byline"], [class*="Byline"], [class*="author"], [rel="author"], [itemprop~="author"]`} {
@@ -111,6 +111,40 @@ func firstGenericByline(doc *goquery.Document) string {
 	return ""
 }
 
+func firstValidSourceByline(doc *goquery.Document) string {
+	var byline string
+	doc.Find("*").EachWithBreak(func(_ int, s *goquery.Selection) bool {
+		if hasHiddenAncestor(s) {
+			return true
+		}
+		matchString := attr(s, "class") + " " + attr(s, "id")
+		if !validSourceByline(s, matchString) {
+			return true
+		}
+		if name := strings.TrimSpace(s.Find(`[itemprop~="name"]`).First().Text()); name != "" {
+			byline = name
+		} else {
+			byline = strings.TrimSpace(s.Text())
+		}
+		return false
+	})
+	return cleanGenericByline(byline)
+}
+
+func validSourceByline(s *goquery.Selection, matchString string) bool {
+	textLength := len([]rune(strings.TrimSpace(s.Text())))
+	if textLength == 0 || textLength >= 100 {
+		return false
+	}
+	rel := attr(s, "rel")
+	itemprop := attr(s, "itemprop")
+	return rel == "author" ||
+		strings.Contains(itemprop, "author") ||
+		bylineRE.MatchString(matchString)
+}
+
+var bylineRE = regexp.MustCompile(`(?i)byline|author|dateline|writtenby|p-author`)
+
 func cleanGenericByline(byline string) string {
 	if strings.Contains(byline, "Edited by") {
 		return byline
@@ -137,33 +171,24 @@ func cleanGenericByline(byline string) string {
 			break
 		}
 	}
-	return normalizeBylineName(strings.Join(kept, "\n"))
+	return strings.Join(kept, "\n")
 }
 
 var monthNameRE = regexp.MustCompile(`\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\b`)
 var relativeTimeRE = regexp.MustCompile(`^\d+\s*[hm]$`)
 
-func normalizeBylineName(byline string) string {
-	if strings.Contains(byline, "\n") || strings.Contains(byline, "\t") {
-		return byline
-	}
-	trimmed := strings.TrimSpace(byline)
-	prefix := ""
-	if strings.HasPrefix(trimmed, "By ") {
-		prefix = "By "
-		trimmed = strings.TrimSpace(strings.TrimPrefix(trimmed, "By "))
-	}
-	if trimmed == "" || trimmed != strings.ToUpper(trimmed) {
-		return byline
-	}
-	words := strings.Fields(strings.ToLower(trimmed))
-	for i, word := range words {
-		words[i] = strings.ToUpper(word[:1]) + word[1:]
-	}
-	return prefix + strings.Join(words, " ")
-}
-
 func structuredSourceByline(doc *goquery.Document) string {
+	if byline := firstSelectionText(doc.Find(`.article-author [itemprop~="name"]`).First()); byline != "" {
+		return byline
+	}
+	if byline := firstSelectionText(doc.Find(".byline").FilterFunction(func(_ int, s *goquery.Selection) bool {
+		return strings.HasPrefix(normalizeSpace(s.Text()), "By ")
+	})); byline != "" {
+		return byline
+	}
+	if byline := firstSelectionText(doc.Find(".author-name").First()); byline != "" {
+		return byline
+	}
 	if byline := firstSelectionText(doc.Find("em.byline").FilterFunction(func(_ int, s *goquery.Selection) bool {
 		text := strings.TrimSpace(s.Text())
 		return text != "" && text == strings.ToUpper(text)

@@ -10,7 +10,7 @@ import (
 
 func TestCleanGenericBylineTrimsMetadataLines(t *testing.T) {
 	got := cleanGenericByline("By JANE DOE\nEditor notes\n2h")
-	if got != "By Jane Doe" {
+	if got != "By JANE DOE" {
 		t.Fatalf("cleanGenericByline = %q", got)
 	}
 
