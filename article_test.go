@@ -152,6 +152,18 @@ func TestFromReaderReturnsBodyDirection(t *testing.T) {
 	}
 }
 
+func TestWrappedArticleSelectionReturnsDocumentDirection(t *testing.T) {
+	html := strings.NewReader(`<html dir="ltr"><body><main itemprop="articleBody"><p>This article has enough useful text to be extracted by the parser fallback path.</p></main></body></html>`)
+
+	article, err := FromReader(html, "https://example.com/story", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if article.Dir != "ltr" {
+		t.Fatalf("Dir = %q", article.Dir)
+	}
+}
+
 func TestFromReaderDoesNotReturnDescendantDirection(t *testing.T) {
 	html := strings.NewReader(`<html><body><article><p>This article has enough useful text to be extracted by the parser.</p><div><span dir="rtl">inline widget text</span></div></article></body></html>`)
 

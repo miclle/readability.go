@@ -251,6 +251,9 @@ func wrapArticleSelection(s *goquery.Selection) *goquery.Selection {
 		Attr: []xhtml.Attribute{{Key: "id", Val: "readability-content"}},
 	}
 	if node := s.Get(0); node != nil {
+		if dir := directionForCandidate(node); dir != "" {
+			setNodeAttr(wrapper, "dir", dir)
+		}
 		appendNode(wrapper, node)
 	}
 	return goquery.NewDocumentFromNode(wrapper).Selection

@@ -56,6 +56,15 @@ func TestSelectionInnerHTMLPreservesTextQuotes(t *testing.T) {
 	}
 }
 
+func TestWrapArticleSelectionPreservesCandidateDirection(t *testing.T) {
+	doc := mustTestDocument(t, `<html dir="ltr"><body><main id="story"><p>Story text.</p></main></body></html>`)
+
+	wrapped := wrapArticleSelection(doc.Find("#story"))
+	if dir := articleDirection(wrapped); dir != "ltr" {
+		t.Fatalf("Dir = %q", dir)
+	}
+}
+
 func TestExpandedBylineActivityUsesSemanticActivityValue(t *testing.T) {
 	doc := mustTestDocument(t, `<article data-activity-map="article-byline-footer"><span id="name">Jane</span></article>`)
 
