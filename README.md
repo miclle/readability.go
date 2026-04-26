@@ -153,6 +153,20 @@ go test -bench=. -benchmem -benchtime=2s -run=^$
 
 Use the suite as a baseline before / after performance-sensitive changes.
 
+## Fuzzing
+
+`fuzz_test.go` defines fuzz harnesses for both `FromReader` and
+`IsProbablyReaderable`. They check that arbitrary HTML byte sequences do not
+trigger panics or unexpected (non-sentinel) errors:
+
+```sh
+go test -run=^$ -fuzz=FuzzFromReader -fuzztime=30s .
+go test -run=^$ -fuzz=FuzzIsProbablyReaderable -fuzztime=30s .
+```
+
+Run them in CI or locally before shipping changes that touch parsing,
+cleanup, or visibility logic.
+
 ## Upstream Test Data
 
 Compatibility fixtures under `testdata/test-pages` are copied from
