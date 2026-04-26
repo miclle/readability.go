@@ -124,17 +124,41 @@ func TestFirstSourceBylineSkipsEntryBylineMetadataLines(t *testing.T) {
 }
 
 func TestSelectionInnerHTMLPreservesTextQuotes(t *testing.T) {
-	doc := mustTestDocument(t, `<div id="root"><p title="'quoted'">You're "ready"</p></div>`)
+	doc := mustTestDocument(t, `<div id="root"><p title="'quoted'">You're&nbsp;"ready"</p></div>`)
 
 	html, err := selectionInnerHTML(doc.Find("#root"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(html, `You're "ready"`) {
+	if !strings.Contains(html, `You're&nbsp;"ready"`) {
 		t.Fatalf("text quotes were escaped: %q", html)
 	}
 	if !strings.Contains(html, `title="&#39;quoted&#39;"`) {
 		t.Fatalf("attribute quotes were not escaped safely: %q", html)
+	}
+}
+
+func TestNormalizeTextContentEntitiesPreservesNBSP(t *testing.T) {
+	got := normalizeTextContentEntities("A\u00a0B", true)
+	if got != "A&nbsp;B" {
+		t.Fatalf("normalizeTextContentEntities = %q", got)
+	}
+
+	got = normalizeTextContentEntities("A\u00a0B", false)
+	if got != "A\u00a0B" {
+		t.Fatalf("normalizeTextContentEntities without named NBSP = %q", got)
+	}
+}
+
+func TestSelectionInnerHTMLUsesPreferredNBSP(t *testing.T) {
+	doc := mustTestDocument(t, `<div id="root"><p>A&nbsp;B</p></div>`)
+
+	html, err := selectionInnerHTMLWithNBSP(doc.Find("#root"), "&#160;")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(html, `A&#160;B`) {
+		t.Fatalf("NBSP was not serialized with preferred entity: %q", html)
 	}
 }
 

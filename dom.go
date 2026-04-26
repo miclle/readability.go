@@ -337,14 +337,18 @@ var phrasingElement = map[string]bool{
 }
 
 func selectionInnerHTML(s *goquery.Selection) (string, error) {
+	return selectionInnerHTMLWithNBSP(s, "&nbsp;")
+}
+
+func selectionInnerHTMLWithNBSP(s *goquery.Selection, nbspEntity string) (string, error) {
 	html, err := s.Html()
 	if err != nil {
 		return "", err
 	}
-	return unescapeTextQuoteEntities(html), nil
+	return normalizeSerializedTextEntities(html, nbspEntity), nil
 }
 
-func unescapeTextQuoteEntities(value string) string {
+func normalizeSerializedTextEntities(value, nbspEntity string) string {
 	var out strings.Builder
 	out.Grow(len(value))
 	inTag := false
@@ -353,7 +357,7 @@ func unescapeTextQuoteEntities(value string) string {
 		switch r {
 		case '<':
 			if !inTag {
-				out.WriteString(unescapeQuoteEntities(value[start:i]))
+				out.WriteString(unescapeQuoteEntities(value[start:i], nbspEntity))
 				start = i
 				inTag = true
 			}
@@ -370,14 +374,15 @@ func unescapeTextQuoteEntities(value string) string {
 		if inTag {
 			out.WriteString(rest)
 		} else {
-			out.WriteString(unescapeQuoteEntities(rest))
+			out.WriteString(unescapeQuoteEntities(rest, nbspEntity))
 		}
 	}
 	return out.String()
 }
 
-func unescapeQuoteEntities(value string) string {
+func unescapeQuoteEntities(value, nbspEntity string) string {
 	value = strings.ReplaceAll(value, "&#39;", "'")
 	value = strings.ReplaceAll(value, "&#34;", `"`)
+	value = strings.ReplaceAll(value, "\u00a0", nbspEntity)
 	return value
 }

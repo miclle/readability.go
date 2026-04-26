@@ -47,10 +47,12 @@ func FromReader(r io.Reader, pageURL string, options *Options) (Article, error) 
 		title = metadata.Title
 	}
 	content := extractArticleContent(doc, pageURL, title)
-	textContent := strings.TrimSpace(content.Text())
-	if options != nil && options.CharThreshold > 0 && len([]rune(textContent)) < options.CharThreshold {
+	rawTextContent := strings.TrimSpace(content.Text())
+	if options != nil && options.CharThreshold > 0 && len([]rune(rawTextContent)) < options.CharThreshold {
 		return Article{}, nil
 	}
+	nbspEntity := preferredNBSPSerializedEntity(data)
+	textContent := normalizeTextContentEntities(rawTextContent, nbspEntity == "&nbsp;")
 	excerpt := firstExcerptText(content, title)
 	if metadata.Excerpt != "" {
 		excerpt = metadata.Excerpt
@@ -70,7 +72,7 @@ func FromReader(r io.Reader, pageURL string, options *Options) (Article, error) 
 		byline = sourceByline
 	}
 
-	htmlContent, err := selectionInnerHTML(content)
+	htmlContent, err := selectionInnerHTMLWithNBSP(content, nbspEntity)
 	if err != nil {
 		return Article{}, err
 	}
@@ -96,6 +98,22 @@ func FromReader(r io.Reader, pageURL string, options *Options) (Article, error) 
 	}
 
 	return result, nil
+}
+
+func preferredNBSPSerializedEntity(data []byte) string {
+	named := bytes.Count(data, []byte("&nbsp;"))
+	numeric := bytes.Count(data, []byte("&#160;"))
+	if numeric > named {
+		return "&#160;"
+	}
+	return "&nbsp;"
+}
+
+func normalizeTextContentEntities(value string, preserveNamedNBSP bool) string {
+	if !preserveNamedNBSP {
+		return value
+	}
+	return strings.ReplaceAll(value, "\u00a0", "&nbsp;")
 }
 
 func articleDirection(content *goquery.Selection) string {
