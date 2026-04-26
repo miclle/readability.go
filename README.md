@@ -58,6 +58,28 @@ correct for this port or would break pinned fixtures.
 - `cnn`: current upstream keeps a small SmartAsset attribution block that this
   port currently removes during cleanup.
 
+## Project Position
+
+This port deliberately optimizes for **fixture-level compatibility with
+the pinned mozilla/readability checkout** rather than tracking upstream
+HEAD or matching any other Go port byte-for-byte. Concrete consequences:
+
+- The 130 Mozilla `test/test-pages` fixtures are the regression suite.
+  Any change must keep them green; deviations from current upstream that
+  would break a pinned fixture are documented in
+  `tools/known-upstream-drift.json` instead of being chased blindly.
+- Compatibility behaviors that come from a single fixture (a CMS quirk,
+  a news-site template) live in `compat.go` / `legacy.go` and are kept
+  out of the generic parser flow so they cannot leak into other paths.
+- No dependency on other Go Readability ports. Algorithms are
+  re-implemented from the upstream source so behavioral differences are
+  intentional and documented, not inherited.
+
+If you need a port that tracks upstream HEAD aggressively, or one that
+ships extra heuristics on top, this is not it. If you need predictable
+behavior pinned to a known mozilla/readability snapshot with a
+machine-checkable drift report, this is the right project.
+
 ## Implementation Layout
 
 The public entry point lives in `article.go`. The parser implementation is

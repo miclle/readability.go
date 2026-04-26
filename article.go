@@ -16,35 +16,69 @@ import (
 )
 
 // Article is the content and metadata extracted from an HTML document.
+//
+// The struct mirrors the shape returned by mozilla/readability's `parse()`
+// so it can be consumed in roughly the same way. All fields are best-effort:
+// when no useful value is found, the zero value (empty string / 0) is
+// returned rather than an error. Use Length to distinguish "we found an
+// article" from "we found nothing readable".
 type Article struct {
-	// Title is the article headline as detected from metadata or the document title.
+	// Title is the article headline as detected from metadata
+	// (JSON-LD > og:title > twitter:title > <title>) or, if none of
+	// those produce a candidate, fallbackTitle's heuristics over the
+	// document. Empty when no title can be derived.
 	Title string
 
-	// Content is the cleaned article body wrapped in a `<div id="readability-page-1" class="page">` element.
+	// Content is the cleaned article HTML, wrapped in
+	// `<div id="readability-page-1" class="page">…</div>`. Suitable for
+	// direct rendering (after sanitization for your trust model). Class
+	// attributes inside the wrapper are filtered by KeepClasses /
+	// ClassesToPreserve; other attributes follow upstream behavior
+	// (presentational attrs stripped, deprecated width/height removed
+	// from table-related elements).
 	Content string
 
-	// TextContent is the plain-text form of Content with whitespace normalized.
+	// TextContent is the plain-text projection of Content with whitespace
+	// normalized (runs of whitespace collapse to a single space). Useful
+	// for length checks, search indexing, and anything that needs the
+	// reading-order text without HTML.
 	TextContent string
 
-	// Length is the rune count of TextContent.
+	// Length is utf8.RuneCountInString(TextContent). Provided so callers
+	// can apply CharThreshold-style policies without recounting.
 	Length int
 
-	// Excerpt is a short summary derived from metadata or the leading paragraph.
+	// Excerpt is a short summary drawn from metadata
+	// (description / og:description / JSON-LD description) or, if none
+	// is present, the first qualifying paragraph of the article body.
+	// Empty when neither source produces a candidate.
 	Excerpt string
 
-	// Byline is the article author or attribution string when one can be detected.
+	// Byline is the article author or attribution string. Sourced first
+	// from the pristine (pre-cleanup) document so author elements that
+	// would otherwise be stripped are preserved, then from JSON-LD /
+	// meta tags. Empty when no byline can be detected.
 	Byline string
 
-	// Dir is the article text direction ("ltr" / "rtl") when explicitly set on the content root.
+	// Dir is the article text direction ("ltr" or "rtl") when one is
+	// explicitly set on the content root or any ancestor; empty otherwise.
+	// Useful for rendering UIs that need to mirror layout for RTL content.
 	Dir string
 
-	// SiteName is the publishing site name extracted from metadata (e.g. og:site_name).
+	// SiteName is the publisher / site name extracted from metadata,
+	// preferring og:site_name. Empty when not present.
 	SiteName string
 
-	// Lang is the document language taken from the `<html lang>` attribute.
+	// Lang is the document language taken from the `<html lang>`
+	// attribute on the parsed document. Empty when the attribute is
+	// missing.
 	Lang string
 
-	// PublishedTime is the article publication timestamp from metadata when available.
+	// PublishedTime is the article publication timestamp extracted from
+	// metadata when available (typically datePublished in JSON-LD or
+	// article:published_time in OpenGraph). The string format is
+	// preserved verbatim from the source — callers needing a typed
+	// time.Time should parse it themselves to avoid lossy normalization.
 	PublishedTime string
 }
 
@@ -145,6 +179,28 @@ func defaultParserConfig() parserConfig {
 }
 
 // FromReader extracts the main article from an HTML stream.
+//
+// pageURL is used to resolve relative URLs (href, src, srcset) inside
+// the extracted content. Pass an empty string to skip URL resolution
+// when the input is already absolute or when relative URLs are
+// acceptable.
+//
+// options may be nil, in which case the parser uses upstream-compatible
+// defaults: NbTopCandidates=5, ClassesToPreserve=["caption"], no element
+// or character thresholds, JSON-LD enabled, and the built-in video
+// allow-list. See Options for per-knob behavior.
+//
+// Errors:
+//   - the underlying reader's read error is returned wrapped only if it
+//     comes from io.ReadAll;
+//   - ErrTooManyElements when the document exceeds Options.MaxElemsToParse;
+//   - ErrBelowCharThreshold when the extracted text is shorter than
+//     Options.CharThreshold (Article is the zero value in this case);
+//   - errors from the underlying HTML parser / serializer when the input
+//     is malformed in ways the tolerant html package cannot recover from.
+//
+// Use errors.Is to distinguish ErrTooManyElements / ErrBelowCharThreshold
+// from generic I/O failures.
 func FromReader(r io.Reader, pageURL string, options *Options) (Article, error) {
 	data, err := io.ReadAll(r)
 	if err != nil {

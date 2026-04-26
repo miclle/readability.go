@@ -20,8 +20,28 @@ type ReaderableOptions struct {
 	MinScore int
 }
 
-// IsProbablyReaderable reports whether an HTML stream is likely to contain an
-// article suitable for parsing.
+// IsProbablyReaderable reports whether an HTML stream is likely to
+// contain an article suitable for parsing.
+//
+// This is the fast pre-check from mozilla/readability's `isProbablyReaderable`
+// — it avoids the full extraction pipeline and is intended for cases
+// where you want to skip cheap-but-pointless work (e.g. a "show reader
+// view" UI affordance, or batch ingestion that should triage candidates
+// before paying the full cost).
+//
+// The heuristic walks p / pre / article elements (plus div ancestors of
+// `<br>`-separated content), filters out hidden and unlikely-class
+// nodes, and accumulates a sqrt-shaped score over candidates whose
+// normalized text length exceeds MinContentLength. Returns true once
+// the cumulative score exceeds MinScore.
+//
+// Defaults match upstream: MinContentLength=140, MinScore=20. A nil or
+// zero-valued option element falls back to the defaults; only positive
+// overrides are honored, so callers cannot accidentally disable a
+// threshold by passing 0.
+//
+// The error is non-nil only when the HTML parser itself fails — a false
+// reading is not an error.
 func IsProbablyReaderable(r io.Reader, options ...ReaderableOptions) (bool, error) {
 	doc, err := goquery.NewDocumentFromReader(r)
 	if err != nil {
