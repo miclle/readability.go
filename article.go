@@ -1,3 +1,7 @@
+// Package readability is a Go port of mozilla/readability that extracts the
+// main article content and metadata from an HTML document. The entry points
+// are FromReader for full extraction and IsProbablyReaderable for a fast
+// pre-check.
 package readability
 
 import (
@@ -12,15 +16,34 @@ import (
 
 // Article is the content and metadata extracted from an HTML document.
 type Article struct {
-	Title         string
-	Content       string
-	TextContent   string
-	Length        int
-	Excerpt       string
-	Byline        string
-	Dir           string
-	SiteName      string
-	Lang          string
+	// Title is the article headline as detected from metadata or the document title.
+	Title string
+
+	// Content is the cleaned article body wrapped in a `<div id="readability-page-1" class="page">` element.
+	Content string
+
+	// TextContent is the plain-text form of Content with whitespace normalized.
+	TextContent string
+
+	// Length is the rune count of TextContent.
+	Length int
+
+	// Excerpt is a short summary derived from metadata or the leading paragraph.
+	Excerpt string
+
+	// Byline is the article author or attribution string when one can be detected.
+	Byline string
+
+	// Dir is the article text direction ("ltr" / "rtl") when explicitly set on the content root.
+	Dir string
+
+	// SiteName is the publishing site name extracted from metadata (e.g. og:site_name).
+	SiteName string
+
+	// Lang is the document language taken from the `<html lang>` attribute.
+	Lang string
+
+	// PublishedTime is the article publication timestamp from metadata when available.
 	PublishedTime string
 }
 

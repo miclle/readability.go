@@ -10,8 +10,13 @@ import (
 
 // ReaderableOptions controls the fast readerability check.
 type ReaderableOptions struct {
+	// MinContentLength is the minimum normalized text length of a single
+	// candidate node required to count toward readability. Defaults to 140.
 	MinContentLength int
-	MinScore         int
+
+	// MinScore is the cumulative score threshold across qualifying nodes
+	// required to mark the document as readerable. Defaults to 20.
+	MinScore int
 }
 
 // IsProbablyReaderable reports whether an HTML stream is likely to contain an
