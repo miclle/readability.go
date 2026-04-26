@@ -30,18 +30,16 @@ func cleanConditionally(root *goquery.Selection, tag string) {
 func shouldRemoveConditionally(s *goquery.Selection, tag string) bool {
 	text := innerText(s)
 	classID := strings.ToLower(attr(s, "class") + " " + attr(s, "id"))
-	if attr(s, "id") == "smartassetcontainer" || hasAncestorNodeID(s.Get(0), "smartassetcontainer") || s.Find("#smartassetcontainer").Length() > 0 {
+	if isSmartAssetContainer(s) {
 		return false
 	}
-	if attr(s, "id") == "contents" || attr(s, "data-activity-map") == "expanded-byline-article-bottom" ||
-		s.Find(`[data-activity-map="expanded-byline-article-bottom"]`).Length() > 0 ||
-		hasAncestorNodeAttr(s.Get(0), "data-activity-map", "expanded-byline-article-bottom") {
+	if attr(s, "id") == "contents" || isExpandedBylineActivity(s) {
 		return false
 	}
 	if attr(s, "id") == "comments" || hasAncestorNodeID(s.Get(0), "comments") {
 		return false
 	}
-	if strings.HasPrefix(attr(s, "id"), "story-continues-") {
+	if isStoryContinuation(s) {
 		return false
 	}
 	if strings.Contains(classID, "thumbcaption") && strings.Contains(strings.ToLower(text), "is one of") && s.Find("sup").Length() > 0 {
@@ -50,7 +48,7 @@ func shouldRemoveConditionally(s *goquery.Selection, tag string) bool {
 	if isNYTimesCollectionCardSummary(s) {
 		return false
 	}
-	if s.Find("#collection-highlights-container").Length() > 0 {
+	if containsCollectionHighlights(s) {
 		return false
 	}
 	if attr(s, "role") == "tablist" || s.Find(`[role="tablist"]`).Length() > 0 {

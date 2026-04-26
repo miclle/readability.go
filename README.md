@@ -20,6 +20,13 @@ The implementation is intentionally self-contained and does not depend on
 other Go Readability ports. Current work is focused on replacing broad
 heuristics with fixture-proven compatibility behavior from Readability.js.
 
+## Development
+
+- Run `make test` for the default test suite.
+- Run `make compat-test` before changing parser, scoring, cleaning, metadata,
+  or compatibility behavior.
+- Run `make vet` for static checks.
+
 ## Implementation Layout
 
 The public entry point lives in `article.go`. The parser implementation is

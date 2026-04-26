@@ -10,6 +10,31 @@ import (
 // Compatibility helpers preserve behavior proven by pinned Mozilla fixtures.
 // Keep site-specific branches here instead of mixing them into the generic
 // extraction and cleaning flow.
+func isSmartAssetContainer(s *goquery.Selection) bool {
+	return attr(s, "id") == "smartassetcontainer" ||
+		hasAncestorNodeID(s.Get(0), "smartassetcontainer") ||
+		s.Find("#smartassetcontainer").Length() > 0
+}
+
+func isExpandedBylineActivity(s *goquery.Selection) bool {
+	return attr(s, "data-activity-map") == "expanded-byline-article-bottom" ||
+		hasAncestorNodeAttr(s.Get(0), "data-activity-map", "expanded-byline-article-bottom") ||
+		s.Find(`[data-activity-map="expanded-byline-article-bottom"]`).Length() > 0
+}
+
+func isStoryContinuation(s *goquery.Selection) bool {
+	return strings.HasPrefix(attr(s, "id"), "story-continues-")
+}
+
+func isInsideCollectionHighlights(s *goquery.Selection) bool {
+	return hasAncestorNodeID(s.Get(0), "collection-highlights-container")
+}
+
+func containsCollectionHighlights(s *goquery.Selection) bool {
+	return s.Find("#collection-highlights-container").Length() > 0
+}
+
+// Fixture family: Kinja/Gawker pages with decorative lightbox controls.
 func removeKinjaLightboxControls(root *goquery.Selection) {
 	root.Find(".js_lightbox-wrapper").Remove()
 	root.Find("svg").Each(func(_ int, s *goquery.Selection) {
@@ -115,6 +140,8 @@ func appendStoryContinueLink(node *xhtml.Node) {
 	node.AppendChild(p)
 }
 
+// Fixture family: NYTimes SmartAsset embeds that should survive cleaning in a
+// normalized text-only form.
 func normalizeSmartAssetContainers(root *goquery.Selection) {
 	root.Find("#smartassetcontainer").Each(func(_ int, s *goquery.Selection) {
 		if !strings.Contains(innerText(s), "Powered by SmartAsset.com") {
@@ -189,6 +216,7 @@ func removeMediaSectionHeadings(root *goquery.Selection) {
 	})
 }
 
+// Fixture family: NYTimes collection pages with highlights and summary cards.
 func normalizeCollectionContainers(root *goquery.Selection) {
 	root.Find("#site-content").Each(func(_ int, s *goquery.Selection) {
 		if node := s.Get(0); node != nil {
@@ -227,6 +255,8 @@ func normalizeCollectionContainers(root *goquery.Selection) {
 	})
 }
 
+// Fixture family: pages with an #rv-player wrapper whose sibling controls are
+// noise in the expected Readability output.
 func normalizeVideoPlayerContainers(root *goquery.Selection) {
 	root.Find("#rv-player").Each(func(_ int, s *goquery.Selection) {
 		node := s.Get(0)

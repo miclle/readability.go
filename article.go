@@ -25,6 +25,8 @@ type Article struct {
 // Options controls parser behavior. It mirrors Mozilla Readability options as
 // the Go implementation grows into full fixture compatibility.
 type Options struct {
+	// CharThreshold is the minimum extracted text length required to return an
+	// article. A zero value disables the threshold.
 	CharThreshold int
 }
 
@@ -47,6 +49,9 @@ func FromReader(r io.Reader, pageURL string, options *Options) (Article, error) 
 	}
 	content := extractArticleContent(doc, pageURL, title)
 	textContent := strings.TrimSpace(content.Text())
+	if options != nil && options.CharThreshold > 0 && len([]rune(textContent)) < options.CharThreshold {
+		return Article{}, nil
+	}
 	excerpt := firstExcerptText(content, title)
 	if metadata.Excerpt != "" {
 		excerpt = metadata.Excerpt

@@ -135,7 +135,7 @@ func prepareArticleScoring(doc *goquery.Document, title string) {
 			removeNode(node)
 			return
 		}
-		if strings.HasPrefix(attr(s, "id"), "story-continues-") || attr(s, "id") == "comments" || attr(s, "id") == "adjacent-posts" {
+		if isStoryContinuation(s) || attr(s, "id") == "comments" || attr(s, "id") == "adjacent-posts" {
 			return
 		}
 		if (tag == "h1" || tag == "h2") && headerDuplicatesTitle(s, title) && (!removedTitleHeader || shortTitleSubsetHeader(s, title)) {

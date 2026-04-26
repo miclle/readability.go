@@ -56,3 +56,23 @@ func TestIsProbablyReaderableMozillaFixture001(t *testing.T) {
 		t.Fatal("fixture 001 should be readerable")
 	}
 }
+
+func TestFromReaderHonorsCharThreshold(t *testing.T) {
+	html := strings.NewReader(`<html><body><article><p>This article has enough useful text to be extracted by the parser.</p></article></body></html>`)
+	article, err := FromReader(html, "https://example.com/article", &Options{CharThreshold: 10})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if article.TextContent == "" {
+		t.Fatal("TextContent is empty below CharThreshold")
+	}
+
+	html = strings.NewReader(`<html><body><article><p>This article has enough useful text to be extracted by the parser.</p></article></body></html>`)
+	article, err = FromReader(html, "https://example.com/article", &Options{CharThreshold: 500})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if article.Content != "" || article.TextContent != "" || article.Length != 0 {
+		t.Fatalf("article below CharThreshold was returned: length=%d content=%q", article.Length, article.Content)
+	}
+}

@@ -42,7 +42,7 @@ func cleanArticleCandidate(article *goquery.Selection) {
 			return
 		}
 		if isBylineCandidate(s) && len([]rune(normalizeSpace(s.Text()))) < 200 &&
-			!hasAncestorNodeID(s.Get(0), "collection-highlights-container") && !hasAncestorNodeID(s.Get(0), "site-content") {
+			!isInsideCollectionHighlights(s) && !hasAncestorNodeID(s.Get(0), "site-content") {
 			if hasAncestorNodeID(s.Get(0), "comments") {
 				return
 			}
@@ -58,13 +58,7 @@ func cleanArticleCandidate(article *goquery.Selection) {
 			if isInlineAuthorsAttribution(s) {
 				return
 			}
-			if s.Find(`[data-activity-map="expanded-byline-article-bottom"]`).Length() > 0 {
-				return
-			}
-			if attr(s, "data-activity-map") == "expanded-byline-article-bottom" {
-				return
-			}
-			if hasAncestorNodeAttr(s.Get(0), "data-activity-map", "expanded-byline-article-bottom") {
+			if isExpandedBylineActivity(s) {
 				return
 			}
 			if isAuthorSemanticNode(s) {
@@ -271,7 +265,7 @@ func convertTextOnlyDivsToParagraphs(root *goquery.Selection) {
 		if node == nil || node.Parent == nil || strings.HasPrefix(attr(s, "id"), "readability") {
 			return
 		}
-		if attr(s, "id") == "smartassetcontainer" || s.Find("#smartassetcontainer").Length() > 0 {
+		if isSmartAssetContainer(s) {
 			return
 		}
 		if normalizeSpace(s.Text()) == "" || hasChildBlockElement(node) {
