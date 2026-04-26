@@ -8,16 +8,34 @@ import (
 	xhtml "golang.org/x/net/html"
 )
 
+// bestArticleCandidate runs the standard scoring pass over doc with the
+// production defaults (strip unlikely candidates, weight by class/id).
+// Retry passes (e.g. when the first attempt yields too little text) call
+// bestArticleCandidateWithOptions directly with relaxed flags.
 func bestArticleCandidate(doc *goquery.Document, title string, cfg parserConfig) *goquery.Selection {
 	return bestArticleCandidateWithOptions(doc, title, articleScoringOptions{StripUnlikely: true, WeightClasses: true, Config: cfg})
 }
 
+// articleScoringOptions toggles the heuristics that decide which DOM
+// subtree is the article body. StripUnlikely / WeightClasses can be
+// disabled by retry passes when a strict scoring run produces no usable
+// content; Config carries through user-facing knobs (nbTopCandidates,
+// linkDensityModifier, ...) that influence scoring side effects.
 type articleScoringOptions struct {
 	StripUnlikely bool
 	WeightClasses bool
 	Config        parserConfig
 }
 
+// bestArticleCandidateWithOptions implements mozilla/readability's
+// candidate-scoring algorithm: every paragraph-shaped element propagates
+// a content score up to its first five ancestors (with progressively
+// smaller weight per level), the best-scoring ancestors form the
+// topCandidates pool, and final selection is refined by
+// betterSharedAncestorCandidate (siblings sharing one ancestor) and
+// betterAncestorCandidate (climb into a higher-scoring or single-child
+// parent). The function returns the article wrapper produced by
+// buildArticleContent.
 func bestArticleCandidateWithOptions(doc *goquery.Document, title string, options articleScoringOptions) *goquery.Selection {
 	prepareArticleScoring(doc, title, options)
 
@@ -100,6 +118,15 @@ func bestArticleCandidateWithOptions(doc *goquery.Document, title string, option
 	return buildArticleContent(topCandidate, scores, topScore)
 }
 
+// betterSharedAncestorCandidate promotes the article candidate to a
+// shared ancestor when several near-top candidates live under the same
+// subtree. The intuition: if at least three other top candidates score
+// >= 0.75 * topScore *and* share an ancestor with `top`, that ancestor
+// is more likely to be the real article container than any single
+// candidate. Returns top/topScore unchanged when no such ancestor
+// exists, when there are fewer than four candidates, or when the
+// qualifying set drops below three. Mirrors upstream Readability's
+// `_findHigherSharedAncestor` step.
 func betterSharedAncestorCandidate(top *xhtml.Node, topCandidates []*xhtml.Node, scores map[*xhtml.Node]float64, topScore float64, options articleScoringOptions) (*xhtml.Node, float64) {
 	if top == nil || topScore == 0 || len(topCandidates) < 4 {
 		return top, topScore
@@ -134,6 +161,14 @@ func betterSharedAncestorCandidate(top *xhtml.Node, topCandidates []*xhtml.Node,
 	return top, topScore
 }
 
+// prepareArticleScoring runs a single-pass DOM cleanup before scoring:
+// it removes hidden elements, dialogs, "skip to content" links, headings
+// that duplicate the article title, and (when StripUnlikely is on)
+// elements whose class/id matches the unlikely-candidate regex. It also
+// rewrites bare <div>s into <p>s so the scoring pass treats their text
+// as paragraph content (mozilla/readability's "div ⇒ p" promotion). The
+// `<main id="content">` rename to `<div>` matches upstream's special
+// case for sites that wrap the body in a non-semantic main element.
 func prepareArticleScoring(doc *goquery.Document, title string, options articleScoringOptions) {
 	removedTitleHeader := false
 	doc.Find("*").Each(func(_ int, s *goquery.Selection) {
@@ -194,6 +229,16 @@ func prepareArticleScoring(doc *goquery.Document, title string, options articleS
 	})
 }
 
+// betterAncestorCandidate climbs from `top` toward the document root
+// while the parent's score keeps rising, then walks through any chain of
+// parents that have only `top` as their element child. The score floor
+// (topScore/3) prevents jumping into noisy outer wrappers that happen
+// to be scored. Two compat hooks bracket the climb:
+//   - compatPostsAncestor short-circuits to a `#posts` parent when
+//     present (blog-roll fixtures depend on this).
+//   - compatContentMainArticleAncestor lifts `<article>` tops into their
+//     `#content-main` wrapper for news-site fixtures that expect the
+//     wrapper to remain.
 func betterAncestorCandidate(top *xhtml.Node, scores map[*xhtml.Node]float64, topScore float64) (*xhtml.Node, float64) {
 	if node, score, ok := compatPostsAncestor(top, scores, topScore); ok {
 		return node, score
@@ -231,6 +276,21 @@ func betterAncestorCandidate(top *xhtml.Node, scores map[*xhtml.Node]float64, to
 	return top, topScore
 }
 
+// buildArticleContent assembles the final article wrapper from the top
+// candidate plus any sibling that looks like article continuation.
+// A sibling is appended when:
+//   - it is the top candidate itself; OR
+//   - it scored well enough on its own (score + class-match bonus >=
+//     max(10, topScore*0.2)); OR
+//   - it is an <hr> separator; OR
+//   - it is an <svg> with a data-load-playlist sibling (preserves
+//     embedded podcast / playlist art); OR
+//   - it is a <p> long enough to be prose (text > 80 chars and link
+//     density < 0.25), or a short sentence-like paragraph (text < 80,
+//     no links, contains a period).
+//
+// Non-article tags (e.g. <li>, <td>) are rewritten to <div> via
+// canAppendAsArticleChild so the resulting tree stays valid HTML.
 func buildArticleContent(top *xhtml.Node, scores map[*xhtml.Node]float64, topScore float64) *goquery.Selection {
 	wrapper := &xhtml.Node{
 		Type: xhtml.ElementNode,

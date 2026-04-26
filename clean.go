@@ -31,6 +31,27 @@ type articleCleanOptions struct {
 	Config             parserConfig
 }
 
+// cleanArticleCandidateWithOptions runs the cleanup pipeline in a fixed
+// order that matches mozilla/readability's `_cleanConditionally` flow.
+// The order matters:
+//  1. Remove forms, scripts, navs (structurally definitely-not-content).
+//  2. Apply early compat hooks that re-shape known site templates BEFORE
+//     scoring-aware cleanup runs (e.g. attachment images need wrapping
+//     so they survive the next steps).
+//  3. Drop iframes/embeds/audio that aren't on the allow list.
+//  4. Remove "noise" blocks that survived structural removal but are
+//     pure UI (share buttons, related-posts wells, ...).
+//  5. Normalize markup (replace <br><br>, unwrap single-cell tables,
+//     merge missing image attrs, strip data-* attrs, ...).
+//  6. Conditional cleanup (the link-density-aware pass) — gated by
+//     CleanConditionally because retry rungs may disable it.
+//  7. Late compat hooks and unlikely-element removal — order chosen so
+//     compat hooks see the conditional-cleanup output, then the
+//     class/id-based unlikely filter has the final say.
+//  8. Drop empty <p> tags and rebuild the article wrapper.
+//
+// Each step is intentionally idempotent and stateless: re-running the
+// pipeline on its own output should produce the same result.
 func cleanArticleCandidateWithOptions(article *goquery.Selection, options articleCleanOptions) {
 	removeDisallowedArticleElements(article)
 	applyEarlyCompatibilityCleanups(article)
