@@ -51,3 +51,54 @@ jobs:
       # readerability pre-check. Local runs can use a longer FUZZTIME.
       - name: Run fuzz smoke
         run: make fuzz FUZZTIME=20s
+
+  bench-compare:
+    name: Bench compare (PR vs main)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+
+    steps:
+      - name: Check out PR head
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+
+      - name: Install benchstat
+        run: go install golang.org/x/perf/cmd/benchstat@latest
+
+      # Dynamic baseline: record the merge-base (main) on the same runner
+      # to neutralize CPU / scheduler / Go version variance between
+      # baselines and the PR head. Hardware-pinned baselines committed to
+      # testdata/ are intentionally not used here — they exist only for
+      # local developer reference.
+      - name: Record main baseline
+        run: |
+          git fetch origin main
+          git checkout origin/main -- .
+          go test -bench=. -benchmem -benchtime=1s -count=6 -run=^$ . \
+            > /tmp/bench-main.txt
+          git checkout HEAD -- .
+
+      - name: Record PR head
+        run: |
+          go test -bench=. -benchmem -benchtime=1s -count=6 -run=^$ . \
+            > /tmp/bench-pr.txt
+
+      - name: Compare with benchstat
+        run: |
+          $(go env GOPATH)/bin/benchstat /tmp/bench-main.txt /tmp/bench-pr.txt \
+            | tee /tmp/bench-report.txt
+
+      - name: Upload bench report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bench-report
+          path: /tmp/bench-report.txt
+

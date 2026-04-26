@@ -1,4 +1,4 @@
-.PHONY: all test vet compat-test fuzz
+.PHONY: all test vet compat-test fuzz bench bench-baseline bench-compare
 
 all: vet test
 
@@ -20,3 +20,35 @@ FUZZTIME ?= 30s
 fuzz:
 	go test -run=^$$ -fuzz=FuzzFromReader -fuzztime=$(FUZZTIME) .
 	go test -run=^$$ -fuzz=FuzzIsProbablyReaderable -fuzztime=$(FUZZTIME) .
+
+# Benchmark targets.
+#
+# `bench`           runs the suite once, prints results, leaves nothing on
+#                   disk. Use during local iteration.
+# `bench-baseline`  records a fresh testdata/bench-baseline.txt with enough
+#                   samples for benchstat confidence intervals (count=6).
+#                   Run this after a deliberate perf change to update the
+#                   committed baseline.
+# `bench-compare`   runs the suite into /tmp/bench-current.txt and diffs it
+#                   against the committed baseline via benchstat. Exits
+#                   non-zero only on benchstat invocation errors; perf
+#                   regressions are reported as part of the textual output
+#                   so reviewers can decide whether the drift is acceptable.
+BENCHTIME ?= 2s
+BENCHCOUNT ?= 6
+
+bench:
+	go test -bench=. -benchmem -benchtime=$(BENCHTIME) -count=1 -run=^$$ .
+
+bench-baseline:
+	go test -bench=. -benchmem -benchtime=$(BENCHTIME) -count=$(BENCHCOUNT) -run=^$$ . \
+		> testdata/bench-baseline.txt
+
+bench-compare:
+	@command -v benchstat >/dev/null 2>&1 || { \
+		echo "benchstat not found; install with: go install golang.org/x/perf/cmd/benchstat@latest"; \
+		exit 1; \
+	}
+	go test -bench=. -benchmem -benchtime=$(BENCHTIME) -count=$(BENCHCOUNT) -run=^$$ . \
+		> /tmp/bench-current.txt
+	benchstat testdata/bench-baseline.txt /tmp/bench-current.txt

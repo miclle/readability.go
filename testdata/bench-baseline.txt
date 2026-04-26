@@ -1,0 +1,66 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/miclle/readability.go
+cpu: Apple M4 Pro
+BenchmarkFromReader/001-14          	    2386	    950268 ns/op	  13.19 MB/s	 1142283 B/op	    7800 allocs/op
+BenchmarkFromReader/001-14          	    2503	   1023978 ns/op	  12.24 MB/s	 1145550 B/op	    7801 allocs/op
+BenchmarkFromReader/001-14          	    2542	    952434 ns/op	  13.16 MB/s	 1146266 B/op	    7801 allocs/op
+BenchmarkFromReader/001-14          	    2546	    967671 ns/op	  12.95 MB/s	 1145657 B/op	    7801 allocs/op
+BenchmarkFromReader/001-14          	    2510	    991866 ns/op	  12.64 MB/s	 1145856 B/op	    7801 allocs/op
+BenchmarkFromReader/001-14          	    2481	    987922 ns/op	  12.69 MB/s	 1145930 B/op	    7801 allocs/op
+BenchmarkFromReader/wikipedia-14    	      67	  37362914 ns/op	   6.54 MB/s	27879543 B/op	  357732 allocs/op
+BenchmarkFromReader/wikipedia-14    	      66	  36150226 ns/op	   6.75 MB/s	27853030 B/op	  357729 allocs/op
+BenchmarkFromReader/wikipedia-14    	      68	  36434801 ns/op	   6.70 MB/s	27867157 B/op	  357730 allocs/op
+BenchmarkFromReader/wikipedia-14    	      66	  35970016 ns/op	   6.79 MB/s	27847991 B/op	  357728 allocs/op
+BenchmarkFromReader/wikipedia-14    	      66	  36076333 ns/op	   6.77 MB/s	27854541 B/op	  357729 allocs/op
+BenchmarkFromReader/wikipedia-14    	      63	  36971610 ns/op	   6.60 MB/s	27858417 B/op	  357729 allocs/op
+BenchmarkFromReader/nytimes-1-14    	     224	  10691313 ns/op	  28.92 MB/s	 8959785 B/op	   66840 allocs/op
+BenchmarkFromReader/nytimes-1-14    	     228	  10558072 ns/op	  29.28 MB/s	 8955543 B/op	   66839 allocs/op
+BenchmarkFromReader/nytimes-1-14    	     225	  10678137 ns/op	  28.95 MB/s	 8957617 B/op	   66840 allocs/op
+BenchmarkFromReader/nytimes-1-14    	     219	  11071178 ns/op	  27.93 MB/s	 8957128 B/op	   66839 allocs/op
+BenchmarkFromReader/nytimes-1-14    	     223	  10754334 ns/op	  28.75 MB/s	 8962108 B/op	   66840 allocs/op
+BenchmarkFromReader/nytimes-1-14    	     220	  10583605 ns/op	  29.21 MB/s	 8959702 B/op	   66840 allocs/op
+BenchmarkFromReader/medium-1-14     	     189	  11372647 ns/op	  10.51 MB/s	13777374 B/op	   29978 allocs/op
+BenchmarkFromReader/medium-1-14     	     213	  11239036 ns/op	  10.64 MB/s	13781266 B/op	   29978 allocs/op
+BenchmarkFromReader/medium-1-14     	     217	  10534563 ns/op	  11.35 MB/s	13762055 B/op	   29976 allocs/op
+BenchmarkFromReader/medium-1-14     	     193	  11394147 ns/op	  10.49 MB/s	13786705 B/op	   29979 allocs/op
+BenchmarkFromReader/medium-1-14     	     214	  10786124 ns/op	  11.08 MB/s	13767717 B/op	   29977 allocs/op
+BenchmarkFromReader/medium-1-14     	     223	  11690215 ns/op	  10.23 MB/s	13781195 B/op	   29978 allocs/op
+BenchmarkFromReader/hidden-nodes-14 	   12925	    187015 ns/op	  18.01 MB/s	  171264 B/op	    2010 allocs/op
+BenchmarkFromReader/hidden-nodes-14 	   12916	    194395 ns/op	  17.33 MB/s	  171369 B/op	    2010 allocs/op
+BenchmarkFromReader/hidden-nodes-14 	   13040	    178274 ns/op	  18.90 MB/s	  171297 B/op	    2010 allocs/op
+BenchmarkFromReader/hidden-nodes-14 	   13335	    188229 ns/op	  17.90 MB/s	  171352 B/op	    2010 allocs/op
+BenchmarkFromReader/hidden-nodes-14 	   13044	    188870 ns/op	  17.84 MB/s	  171221 B/op	    2010 allocs/op
+BenchmarkFromReader/hidden-nodes-14 	   13077	    181787 ns/op	  18.53 MB/s	  171330 B/op	    2010 allocs/op
+BenchmarkIsProbablyReaderable/001-14         	   24384	     94457 ns/op	 132.68 MB/s	   93840 B/op	     809 allocs/op
+BenchmarkIsProbablyReaderable/001-14         	   26004	     92456 ns/op	 135.56 MB/s	   93814 B/op	     809 allocs/op
+BenchmarkIsProbablyReaderable/001-14         	   25778	     93736 ns/op	 133.70 MB/s	   93837 B/op	     809 allocs/op
+BenchmarkIsProbablyReaderable/001-14         	   25029	    110053 ns/op	 113.88 MB/s	   94015 B/op	     809 allocs/op
+BenchmarkIsProbablyReaderable/001-14         	   23419	     95108 ns/op	 131.78 MB/s	   93863 B/op	     809 allocs/op
+BenchmarkIsProbablyReaderable/001-14         	   25345	     93747 ns/op	 133.69 MB/s	   93828 B/op	     809 allocs/op
+BenchmarkIsProbablyReaderable/wikipedia-14   	    1567	   1580791 ns/op	 154.47 MB/s	 1186854 B/op	   16153 allocs/op
+BenchmarkIsProbablyReaderable/wikipedia-14   	    1507	   1565658 ns/op	 155.96 MB/s	 1186855 B/op	   16153 allocs/op
+BenchmarkIsProbablyReaderable/wikipedia-14   	    1478	   1661961 ns/op	 146.93 MB/s	 1186855 B/op	   16153 allocs/op
+BenchmarkIsProbablyReaderable/wikipedia-14   	    1560	   1557258 ns/op	 156.81 MB/s	 1186855 B/op	   16153 allocs/op
+BenchmarkIsProbablyReaderable/wikipedia-14   	    1480	   1543499 ns/op	 158.20 MB/s	 1186855 B/op	   16153 allocs/op
+BenchmarkIsProbablyReaderable/wikipedia-14   	    1578	   1579442 ns/op	 154.60 MB/s	 1186853 B/op	   16153 allocs/op
+BenchmarkIsProbablyReaderable/nytimes-1-14   	    1137	   2031841 ns/op	 152.17 MB/s	 1454006 B/op	   17841 allocs/op
+BenchmarkIsProbablyReaderable/nytimes-1-14   	    1106	   1992173 ns/op	 155.20 MB/s	 1453519 B/op	   17841 allocs/op
+BenchmarkIsProbablyReaderable/nytimes-1-14   	    1174	   2094214 ns/op	 147.64 MB/s	 1455055 B/op	   17841 allocs/op
+BenchmarkIsProbablyReaderable/nytimes-1-14   	    1195	   2025770 ns/op	 152.62 MB/s	 1454357 B/op	   17841 allocs/op
+BenchmarkIsProbablyReaderable/nytimes-1-14   	    1167	   2087353 ns/op	 148.12 MB/s	 1453983 B/op	   17841 allocs/op
+BenchmarkIsProbablyReaderable/nytimes-1-14   	    1194	   2033318 ns/op	 152.06 MB/s	 1454805 B/op	   17841 allocs/op
+BenchmarkIsProbablyReaderable/medium-1-14    	    3932	    607150 ns/op	 196.92 MB/s	  701179 B/op	    3317 allocs/op
+BenchmarkIsProbablyReaderable/medium-1-14    	    3963	    599209 ns/op	 199.53 MB/s	  700960 B/op	    3317 allocs/op
+BenchmarkIsProbablyReaderable/medium-1-14    	    3963	    601160 ns/op	 198.88 MB/s	  700939 B/op	    3317 allocs/op
+BenchmarkIsProbablyReaderable/medium-1-14    	    4095	    595473 ns/op	 200.78 MB/s	  700945 B/op	    3317 allocs/op
+BenchmarkIsProbablyReaderable/medium-1-14    	    4012	    596198 ns/op	 200.54 MB/s	  700749 B/op	    3317 allocs/op
+BenchmarkIsProbablyReaderable/medium-1-14    	    3955	    595317 ns/op	 200.84 MB/s	  700834 B/op	    3317 allocs/op
+BenchmarkIsProbablyReaderable/hidden-nodes-14         	  160861	     15248 ns/op	 220.94 MB/s	   15304 B/op	     113 allocs/op
+BenchmarkIsProbablyReaderable/hidden-nodes-14         	  159586	     15094 ns/op	 223.19 MB/s	   15304 B/op	     113 allocs/op
+BenchmarkIsProbablyReaderable/hidden-nodes-14         	  153675	     15292 ns/op	 220.31 MB/s	   15304 B/op	     113 allocs/op
+BenchmarkIsProbablyReaderable/hidden-nodes-14         	  162114	     15538 ns/op	 216.82 MB/s	   15304 B/op	     113 allocs/op
+BenchmarkIsProbablyReaderable/hidden-nodes-14         	  158338	     15221 ns/op	 221.33 MB/s	   15304 B/op	     113 allocs/op
+BenchmarkIsProbablyReaderable/hidden-nodes-14         	  143175	     16477 ns/op	 204.47 MB/s	   15304 B/op	     113 allocs/op
+PASS
+ok  	github.com/miclle/readability.go	179.160s

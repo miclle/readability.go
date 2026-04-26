@@ -149,10 +149,23 @@ A benchmark suite covering small / medium / large / visibility-heavy fixtures
 lives in `bench_test.go`:
 
 ```sh
-go test -bench=. -benchmem -benchtime=2s -run=^$
+make bench                       # quick run, no baseline write
+make bench-baseline              # refresh testdata/bench-baseline.txt (6 samples)
+make bench-compare               # benchstat current vs committed baseline
 ```
 
-Use the suite as a baseline before / after performance-sensitive changes.
+`testdata/bench-baseline.txt` is captured on the maintainer's hardware
+(Apple M4 Pro, darwin/arm64) and is intended for local developer reference
+only. CI uses a dynamic baseline: the `bench-compare` job records both
+`origin/main` and the PR head on the same runner and posts a `benchstat`
+report as a build artifact. This neutralizes the CPU / scheduler variance
+that would otherwise make a hardware-pinned baseline unreliable in CI.
+
+Direct `go test` invocation is still supported for ad-hoc runs:
+
+```sh
+go test -bench=. -benchmem -benchtime=2s -run=^$
+```
 
 ## Fuzzing
 
