@@ -6,20 +6,25 @@ import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const upstream = process.env.READABILITY_UPSTREAM || "/Users/miclle/mozilla/readability";
+const args = process.argv.slice(2);
+const upstream = stringOption("--upstream", process.env.READABILITY_UPSTREAM);
+if (!upstream) {
+  console.error("usage: compare-upstream.mjs --upstream /path/to/mozilla/readability [--all] [--char-threshold N] [fixture ...]");
+  console.error("       or set READABILITY_UPSTREAM=/path/to/mozilla/readability");
+  process.exit(2);
+}
 const goJSON = process.env.READABILITY_GO_JSON || "go";
 const require = createRequire(import.meta.url);
 const { Readability } = require(join(upstream, "index.js"));
 const JSDOMParser = require(join(upstream, "JSDOMParser.js"));
 
-const args = process.argv.slice(2);
 const compareAll = args.includes("--all");
 const charThreshold = numberOption("--char-threshold", 500);
 const requested = args.filter((arg, index) => {
-  if (arg === "--all" || arg === "--char-threshold") {
+  if (arg === "--all" || arg === "--char-threshold" || arg === "--upstream") {
     return false;
   }
-  if (args[index - 1] === "--char-threshold") {
+  if (args[index - 1] === "--char-threshold" || args[index - 1] === "--upstream") {
     return false;
   }
   return !arg.startsWith("-");
@@ -138,6 +143,18 @@ function numberOption(name, fallback) {
   const value = Number(args[index + 1]);
   if (!Number.isFinite(value)) {
     throw new Error(`${name} requires a number`);
+  }
+  return value;
+}
+
+function stringOption(name, fallback) {
+  const index = args.indexOf(name);
+  if (index === -1) {
+    return fallback;
+  }
+  const value = args[index + 1];
+  if (!value || value.startsWith("-")) {
+    throw new Error(`${name} requires a value`);
   }
   return value;
 }
