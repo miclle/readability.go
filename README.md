@@ -12,9 +12,6 @@ This project is at the compatibility porting stage.
 - Metadata and content comparison are wired up for all pinned Mozilla fixtures.
 - Full compatibility benchmarks can be run with
   `READABILITY_FULL_COMPAT=1 go test -run 'TestParseAllMozilla(Metadata|Content)Fixtures'`.
-- Exact fixture matching can be enforced with `READABILITY_STRICT_COMPAT=1`;
-  strict mode is intended for compatibility investigations, not for adding
-  testdata-specific logic to the library.
 
 The implementation is intentionally self-contained and does not depend on
 other Go Readability ports. Current work is focused on general Readability
@@ -26,6 +23,8 @@ fixtures into production logic.
 - Run `make test` for the default test suite.
 - Run `make compat-test` before changing parser, scoring, cleaning, or metadata
   behavior to inspect benchmark drift.
+- `make strict-compat-test` is kept as a non-failing compatibility notice; exact
+  fixture matching is not a maintenance gate for this general-purpose library.
 - Run `make vet` for static checks.
 
 ## Implementation Layout
