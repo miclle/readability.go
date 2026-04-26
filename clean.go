@@ -148,6 +148,7 @@ func normalizeArticleMarkup(article *goquery.Selection) {
 func applyConditionalCleanups(article *goquery.Selection) {
 	cleanConditionally(article, "form")
 	cleanConditionally(article, "fieldset")
+	cleanConditionally(article, "table")
 	cleanConditionally(article, "ul")
 	cleanConditionally(article, "div")
 }

@@ -2,6 +2,7 @@ package readability
 
 import (
 	"math"
+	"strconv"
 	"strings"
 
 	"github.com/PuerkitoBio/goquery"
@@ -37,6 +38,12 @@ func shouldRemoveConditionally(s *goquery.Selection, tag string) bool {
 		return false
 	}
 	if isContinuationMarker(s) {
+		return false
+	}
+	if tag == "table" && isDataTable(s) {
+		return false
+	}
+	if containsDataTable(s) {
 		return false
 	}
 	if strings.Contains(classID, "thumbcaption") && strings.Contains(strings.ToLower(text), "is one of") && s.Find("sup").Length() > 0 {
@@ -124,4 +131,75 @@ func shouldRemoveConditionally(s *goquery.Selection, tag string) bool {
 		}
 	}
 	return remove
+}
+
+func containsDataTable(s *goquery.Selection) bool {
+	found := false
+	s.Find("table").EachWithBreak(func(_ int, table *goquery.Selection) bool {
+		if isDataTable(table) {
+			found = true
+			return false
+		}
+		return true
+	})
+	return found
+}
+
+func isDataTable(s *goquery.Selection) bool {
+	if strings.EqualFold(attr(s, "role"), "presentation") || attr(s, "datatable") == "0" {
+		return false
+	}
+	if attr(s, "summary") != "" {
+		return true
+	}
+	if caption := s.Find("caption").First(); caption.Length() > 0 && caption.Get(0).FirstChild != nil {
+		return true
+	}
+	if s.Find("col, colgroup, tfoot, thead, th").Length() > 0 {
+		return true
+	}
+	if s.Find("table").Length() > 0 {
+		return false
+	}
+	rows, columns := tableSize(s)
+	if columns == 1 || rows == 1 {
+		return false
+	}
+	if rows >= 10 || columns > 4 {
+		return true
+	}
+	return rows*columns > 10
+}
+
+func tableSize(s *goquery.Selection) (int, int) {
+	rows := 0
+	columns := 0
+	s.Find("tr").Each(func(_ int, tr *goquery.Selection) {
+		rowspan := positiveIntAttr(tr, "rowspan")
+		if rowspan == 0 {
+			rowspan = 1
+		}
+		rows += rowspan
+
+		columnsInRow := 0
+		tr.Find("td").Each(func(_ int, td *goquery.Selection) {
+			colspan := positiveIntAttr(td, "colspan")
+			if colspan == 0 {
+				colspan = 1
+			}
+			columnsInRow += colspan
+		})
+		if columnsInRow > columns {
+			columns = columnsInRow
+		}
+	})
+	return rows, columns
+}
+
+func positiveIntAttr(s *goquery.Selection, name string) int {
+	value, err := strconv.Atoi(attr(s, name))
+	if err != nil || value < 0 {
+		return 0
+	}
+	return value
 }

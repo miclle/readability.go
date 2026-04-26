@@ -238,6 +238,39 @@ func TestUnwrapSingleCellTablesWrapsPhrasingContent(t *testing.T) {
 	}
 }
 
+func TestCleanArticleCandidateRemovesLayoutTable(t *testing.T) {
+	doc := mustTestDocument(t, `<article>
+		<p>This article paragraph contains enough text to keep the article meaningful after cleanup.</p>
+		<table><tr><td><a href="/one">One</a></td><td><a href="/two">Two</a></td></tr></table>
+	</article>`)
+	article := doc.Find("article").First()
+
+	cleanArticleCandidate(article)
+
+	if article.Find("table").Length() != 0 {
+		html, _ := article.Html()
+		t.Fatalf("layout table was kept in %s", html)
+	}
+}
+
+func TestCleanArticleCandidateKeepsDataTable(t *testing.T) {
+	doc := mustTestDocument(t, `<article>
+		<table>
+			<caption>Quarterly results</caption>
+			<thead><tr><th>Quarter</th><th>Revenue</th></tr></thead>
+			<tbody><tr><td>Q1</td><td>$10</td></tr><tr><td>Q2</td><td>$12</td></tr></tbody>
+		</table>
+	</article>`)
+	article := doc.Find("article").First()
+
+	cleanArticleCandidate(article)
+
+	if article.Find("table").Length() != 1 {
+		html, _ := article.Html()
+		t.Fatalf("data table was removed from %s", html)
+	}
+}
+
 func TestInlineSVGAttributeCasingAndImageSelection(t *testing.T) {
 	doc := mustTestDocument(t, `<figure><span> <img src="photo.jpg"> </span></figure><svg viewBox="0 0 1 1"></svg>`)
 
