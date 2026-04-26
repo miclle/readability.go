@@ -264,16 +264,9 @@ func FromReader(r io.Reader, pageURL string, options *Options) (Article, error) 
 		Excerpt:       excerpt,
 		Byline:        byline,
 		Dir:           articleDirection(content),
-		SiteName:      "",
+		SiteName:      metadata.SiteName,
 		Lang:          attr(doc.Find("html").First(), "lang"),
-		PublishedTime: "",
-	}
-
-	if metadata.SiteName != "" {
-		result.SiteName = metadata.SiteName
-	}
-	if metadata.PublishedTime != "" {
-		result.PublishedTime = metadata.PublishedTime
+		PublishedTime: metadata.PublishedTime,
 	}
 
 	return result, nil
