@@ -464,11 +464,37 @@ func attr(s *goquery.Selection, name string) string {
 	return strings.TrimSpace(value)
 }
 
-var whitespaceRE = regexp.MustCompile(`\s+`)
 var metaPropertyRE = regexp.MustCompile(`(?i)\s*(article|dc|dcterm|og|twitter)\s*:\s*(author|creator|description|published_time|title|site_name)\s*`)
 var titleSeparatorRE = regexp.MustCompile(`\s[\|\-–—\\/>»]\s`)
 var hierarchicalTitleSeparatorRE = regexp.MustCompile(`\s[\\/>»]\s`)
 
+// normalizeSpace collapses any run of ASCII whitespace (space, tab, newline,
+// carriage return, form feed) into a single space and trims leading/trailing
+// whitespace. This matches `regexp.MustCompile(\s+)` semantics for Go's RE2
+// where `\s` is the ASCII set `[\t\n\f\r ]`. The hand-written version avoids
+// regex overhead, which dominated CPU profiles on large documents.
 func normalizeSpace(s string) string {
-	return strings.TrimSpace(whitespaceRE.ReplaceAllString(s, " "))
+	if s == "" {
+		return ""
+	}
+	var b strings.Builder
+	b.Grow(len(s))
+	prevSpace := true // suppresses leading whitespace
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\f' {
+			if !prevSpace {
+				b.WriteByte(' ')
+				prevSpace = true
+			}
+			continue
+		}
+		b.WriteByte(c)
+		prevSpace = false
+	}
+	out := b.String()
+	if len(out) > 0 && out[len(out)-1] == ' ' {
+		out = out[:len(out)-1]
+	}
+	return out
 }
