@@ -102,6 +102,54 @@ func main() {
 }
 ```
 
+### Options
+
+`FromReader` accepts an optional `*Options` to mirror the upstream parser
+configuration knobs:
+
+```go
+opts := &readability.Options{
+	CharThreshold:     500,                                    // skip docs shorter than 500 chars
+	ClassesToPreserve: []string{"caption", "highlight"},      // extra classes kept during cleanup
+	KeepClasses:       false,                                  // true keeps every class attribute
+	NbTopCandidates:   5,                                      // candidate pool size during scoring
+	DisableJSONLD:     false,                                  // skip JSON-LD metadata extraction
+	AllowedVideoRegex: nil,                                    // override built-in video allow list
+	MaxElemsToParse:   0,                                      // > 0 aborts on huge documents with ErrTooManyElements
+}
+article, err := readability.FromReader(f, pageURL, opts)
+```
+
+When `MaxElemsToParse` is exceeded the call returns `readability.ErrTooManyElements`.
+
+### Probing readerability
+
+For a fast pre-check that does not run the full extractor:
+
+```go
+ok, err := readability.IsProbablyReaderable(f)
+if err != nil {
+	log.Fatal(err)
+}
+if !ok {
+	return
+}
+```
+
+`IsProbablyReaderable` accepts an optional `ReaderableOptions` to tune
+`MinContentLength` and `MinScore`.
+
+## Benchmarks
+
+A benchmark suite covering small / medium / large / visibility-heavy fixtures
+lives in `bench_test.go`:
+
+```sh
+go test -bench=. -benchmem -benchtime=2s -run=^$
+```
+
+Use the suite as a baseline before / after performance-sensitive changes.
+
 ## Upstream Test Data
 
 Compatibility fixtures under `testdata/test-pages` are copied from
