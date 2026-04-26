@@ -336,6 +336,20 @@ func TestWrapPhrasingContentInParagraphs(t *testing.T) {
 	}
 }
 
+func TestWrapLeadingEmphasisContent(t *testing.T) {
+	doc := mustTestDocument(t, `<div id="root"><strong>Lead</strong><p>Body</p></div>`)
+
+	wrapLeadingEmphasisContent(doc.Find("#root"))
+
+	html, err := selectionInnerHTML(doc.Find("#root"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(html, `<p><strong>Lead</strong></p><p>Body</p>`) {
+		t.Fatalf("loose phrasing content was not wrapped: %s", html)
+	}
+}
+
 func TestMetadataFromJSONLDUsesNameForGenericHeadline(t *testing.T) {
 	result := metadataFromJSONLD(map[string]any{
 		"@graph": []any{

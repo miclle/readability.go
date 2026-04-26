@@ -230,11 +230,26 @@ func removeEmptyParagraphs(article *goquery.Selection) {
 }
 
 func finalizeArticleStructure(article *goquery.Selection) {
+	wrapLeadingEmphasisContent(article)
 	removeMediaSectionHeadings(article)
 	removeCompatibilityHorizontalRules(article)
 	removeBoundaryHorizontalRules(article.Get(0))
 	simplifyNestedElements(article)
 	normalizeCollectionContainers(article)
+}
+
+func wrapLeadingEmphasisContent(root *goquery.Selection) {
+	root.Find("div").AddBack().Each(func(_ int, s *goquery.Selection) {
+		node := s.Get(0)
+		first := firstElementChild(node)
+		if node == nil || first == nil || tagNameNode(nextElementSibling(first)) != "p" {
+			return
+		}
+		switch tagNameNode(first) {
+		case "strong", "em", "b", "i":
+			wrapPhrasingContentInParagraphs(node)
+		}
+	})
 }
 
 func cleanPresentationAttributes(node *xhtml.Node) {
