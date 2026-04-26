@@ -80,7 +80,7 @@ func FromReader(r io.Reader, pageURL string, options *Options) (Article, error) 
 		Length:        len([]rune(textContent)),
 		Excerpt:       excerpt,
 		Byline:        byline,
-		Dir:           "",
+		Dir:           articleDirection(content),
 		SiteName:      "",
 		Lang:          attr(doc.Find("html").First(), "lang"),
 		PublishedTime: "",
@@ -94,4 +94,11 @@ func FromReader(r io.Reader, pageURL string, options *Options) (Article, error) 
 	}
 
 	return result, nil
+}
+
+func articleDirection(content *goquery.Selection) string {
+	if dir := attr(content, "dir"); dir != "" {
+		return dir
+	}
+	return attr(content.Find("[dir]").First(), "dir")
 }

@@ -127,3 +127,15 @@ func TestFromReaderRetriesWithoutConditionalCleanup(t *testing.T) {
 		t.Fatalf("TextContent = %q", article.TextContent)
 	}
 }
+
+func TestFromReaderReturnsArticleDirection(t *testing.T) {
+	html := strings.NewReader(`<html><body><article dir="rtl"><p>This article has enough useful text to be extracted by the parser.</p></article></body></html>`)
+
+	article, err := FromReader(html, "https://example.com/story", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if article.Dir != "rtl" {
+		t.Fatalf("Dir = %q", article.Dir)
+	}
+}
