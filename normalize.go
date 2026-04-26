@@ -124,24 +124,6 @@ func removeComments(root *goquery.Selection) {
 	})
 }
 
-func nodeHasContent(node *xhtml.Node) bool {
-	for child := node.FirstChild; child != nil; child = child.NextSibling {
-		if child.Type == xhtml.TextNode && strings.TrimSpace(child.Data) != "" {
-			return true
-		}
-		if child.Type == xhtml.ElementNode {
-			switch tagNameNode(child) {
-			case "img", "embed", "object", "iframe":
-				return true
-			}
-			if nodeHasContent(child) {
-				return true
-			}
-		}
-	}
-	return false
-}
-
 func isPhrasingNode(node *xhtml.Node) bool {
 	if node.Type == xhtml.TextNode {
 		return true

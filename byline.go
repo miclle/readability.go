@@ -97,29 +97,6 @@ func isBylineText(text string) bool {
 		(strings.HasPrefix(normalized, "By ") && len([]rune(normalized)) < 80)
 }
 
-func firstGenericByline(doc *goquery.Document) string {
-	for _, selector := range []string{
-		`.byline, .author, .auteur, [class*="byline"], [class*="Byline"], [class*="author"], [class*="auteur"], [itemprop~="author"]`,
-	} {
-		var byline string
-		doc.Find(selector).EachWithBreak(func(_ int, s *goquery.Selection) bool {
-			if hasHiddenAncestor(s) {
-				return true
-			}
-			text := strings.TrimSpace(s.Text())
-			if text == "" || len([]rune(normalizeSpace(text))) > 200 {
-				return true
-			}
-			byline = cleanGenericByline(text)
-			return false
-		})
-		if byline != "" {
-			return byline
-		}
-	}
-	return ""
-}
-
 func firstValidSourceByline(doc *goquery.Document) string {
 	var byline string
 	doc.Find("*").EachWithBreak(func(_ int, s *goquery.Selection) bool {

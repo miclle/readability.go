@@ -329,10 +329,6 @@ func hasDataLoadPlaylistSibling(node *xhtml.Node) bool {
 	return false
 }
 
-func initialNodeScore(node *xhtml.Node) float64 {
-	return initialNodeScoreWithOptions(node, articleScoringOptions{WeightClasses: true})
-}
-
 func initialNodeScoreWithOptions(node *xhtml.Node, options articleScoringOptions) float64 {
 	score := 0.0
 	switch tagNameNode(node) {
