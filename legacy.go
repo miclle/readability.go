@@ -32,23 +32,40 @@ func legacyTableArticleSelection(doc *goquery.Document) *goquery.Selection {
 
 func bestLegacyTableCell(doc *goquery.Document) *goquery.Selection {
 	var best *goquery.Selection
-	bestLength := 0
-	doc.Find(`td[width="619"]`).Each(func(_ int, s *goquery.Selection) {
-		node := s.Get(0)
-		if node == nil || previousElementSibling(node) == nil {
+	bestScore := 0.0
+	doc.Find("td, th").Each(func(_ int, s *goquery.Selection) {
+		if !isLegacyMainTableCell(s) {
 			return
 		}
 		textLength := len([]rune(innerText(s)))
-		if textLength < 100 || textLength <= bestLength {
+		score := float64(textLength) * (1 - linkDensity(s))
+		if score <= bestScore {
 			return
 		}
 		best = s
-		bestLength = textLength
+		bestScore = score
 	})
 	if best == nil {
 		return &goquery.Selection{}
 	}
 	return best
+}
+
+func isLegacyMainTableCell(s *goquery.Selection) bool {
+	node := s.Get(0)
+	if node == nil || tagNameNode(node.Parent) != "tr" {
+		return false
+	}
+	if hasAncestorNodeTag(node.Parent, "td") {
+		return false
+	}
+	if previousElementSibling(node) == nil || nextElementSibling(node) == nil {
+		return false
+	}
+	if len([]rune(innerText(s))) < 300 {
+		return false
+	}
+	return linkDensity(s) < 0.65
 }
 
 func cleanLegacyTableCandidate(article *goquery.Selection) {

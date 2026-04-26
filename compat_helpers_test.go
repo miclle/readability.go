@@ -541,6 +541,40 @@ func TestCleanConditionallyKeepsContentInsideDataTables(t *testing.T) {
 	}
 }
 
+func TestBestLegacyTableCellUsesLayoutSignals(t *testing.T) {
+	doc := mustTestDocument(t, `<table>
+		<tr>
+			<td width="160"><a href="/nav">Navigation links only</a></td>
+			<td width="640"><p>This is the main article cell with enough prose to be selected from a legacy multi-column table layout. It should not depend on one exact fixture width. The paragraph keeps going so the legacy fallback only applies to substantial article-like table cells, not to small data tables or incidental infobox rows that happen to have neighboring columns.</p></td>
+			<td width="10"></td>
+			<td width="160"><a href="/related">Related</a></td>
+		</tr>
+	</table>`)
+
+	got := bestLegacyTableCell(doc)
+	if !strings.Contains(got.Text(), "main article cell") {
+		t.Fatalf("legacy main cell = %q", got.Text())
+	}
+}
+
+func TestBestLegacyTableCellSkipsNestedCells(t *testing.T) {
+	doc := mustTestDocument(t, `<table>
+		<tr>
+			<td width="160">Left</td>
+			<td width="640"><table><tr>
+				<td>Nested left</td>
+				<td><p>This nested cell has enough article-like prose to look tempting, but nested layout cells should not become the legacy extraction root.</p></td>
+				<td>Nested right</td>
+			</tr></table></td>
+			<td width="160">Right</td>
+		</tr>
+	</table>`)
+
+	if got := bestLegacyTableCell(doc); got.Length() != 0 {
+		t.Fatalf("nested legacy cell was selected: %q", got.Text())
+	}
+}
+
 func TestInlineSVGAttributeCasingAndImageSelection(t *testing.T) {
 	doc := mustTestDocument(t, `<figure><span> <img src="photo.jpg"> </span></figure><svg viewBox="0 0 1 1"></svg>`)
 
