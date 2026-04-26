@@ -80,6 +80,12 @@ type Options struct {
 // ErrTooManyElements is returned when MaxElemsToParse is exceeded.
 var ErrTooManyElements = errors.New("readability: document exceeds MaxElemsToParse")
 
+// ErrBelowCharThreshold is returned when the extracted article's text
+// length is shorter than Options.CharThreshold. The returned Article is
+// the zero value; callers can use errors.Is to distinguish this case from
+// a successful extraction that simply produced no content.
+var ErrBelowCharThreshold = errors.New("readability: extracted text below CharThreshold")
+
 // parserConfig is the resolved, internal form of Options.
 type parserConfig struct {
 	classesToPreserve []string
@@ -160,7 +166,7 @@ func FromReader(r io.Reader, pageURL string, options *Options) (Article, error) 
 	content := extractArticleContent(doc, pageURL, title, cfg)
 	rawTextContent := strings.TrimSpace(content.Text())
 	if options != nil && options.CharThreshold > 0 && len([]rune(rawTextContent)) < options.CharThreshold {
-		return Article{}, nil
+		return Article{}, ErrBelowCharThreshold
 	}
 	nbspEntity := preferredNBSPSerializedEntity(data)
 	textContent := normalizeTextContentEntities(rawTextContent, nbspEntity == "&nbsp;")

@@ -1,6 +1,7 @@
 package readability
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -69,8 +70,8 @@ func TestFromReaderHonorsCharThreshold(t *testing.T) {
 
 	html = strings.NewReader(`<html><body><article><p>This article has enough useful text to be extracted by the parser.</p></article></body></html>`)
 	article, err = FromReader(html, "https://example.com/article", &Options{CharThreshold: 500})
-	if err != nil {
-		t.Fatal(err)
+	if !errors.Is(err, ErrBelowCharThreshold) {
+		t.Fatalf("err = %v, want ErrBelowCharThreshold", err)
 	}
 	if article.Content != "" || article.TextContent != "" || article.Length != 0 {
 		t.Fatalf("article below CharThreshold was returned: length=%d content=%q", article.Length, article.Content)

@@ -121,6 +121,9 @@ article, err := readability.FromReader(f, pageURL, opts)
 ```
 
 When `MaxElemsToParse` is exceeded the call returns `readability.ErrTooManyElements`.
+When the extracted text is shorter than `CharThreshold`, the call returns
+`readability.ErrBelowCharThreshold` along with a zero-value `Article`. Use
+`errors.Is` to distinguish that case from other failures.
 
 ### Probing readerability
 
