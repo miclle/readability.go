@@ -41,6 +41,21 @@ func TestBylineSemanticHelpers(t *testing.T) {
 	}
 }
 
+func TestSelectionInnerHTMLPreservesTextQuotes(t *testing.T) {
+	doc := mustTestDocument(t, `<div id="root"><p title="'quoted'">You're "ready"</p></div>`)
+
+	html, err := selectionInnerHTML(doc.Find("#root"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(html, `You're "ready"`) {
+		t.Fatalf("text quotes were escaped: %q", html)
+	}
+	if !strings.Contains(html, `title="&#39;quoted&#39;"`) {
+		t.Fatalf("attribute quotes were not escaped safely: %q", html)
+	}
+}
+
 func TestExpandedBylineActivityUsesSemanticActivityValue(t *testing.T) {
 	doc := mustTestDocument(t, `<article data-activity-map="article-byline-footer"><span id="name">Jane</span></article>`)
 

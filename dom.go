@@ -341,5 +341,43 @@ func selectionInnerHTML(s *goquery.Selection) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return html, nil
+	return unescapeTextQuoteEntities(html), nil
+}
+
+func unescapeTextQuoteEntities(value string) string {
+	var out strings.Builder
+	out.Grow(len(value))
+	inTag := false
+	start := 0
+	for i, r := range value {
+		switch r {
+		case '<':
+			if !inTag {
+				out.WriteString(unescapeQuoteEntities(value[start:i]))
+				start = i
+				inTag = true
+			}
+		case '>':
+			if inTag {
+				out.WriteString(value[start : i+1])
+				start = i + 1
+				inTag = false
+			}
+		}
+	}
+	if start < len(value) {
+		rest := value[start:]
+		if inTag {
+			out.WriteString(rest)
+		} else {
+			out.WriteString(unescapeQuoteEntities(rest))
+		}
+	}
+	return out.String()
+}
+
+func unescapeQuoteEntities(value string) string {
+	value = strings.ReplaceAll(value, "&#39;", "'")
+	value = strings.ReplaceAll(value, "&#34;", `"`)
+	return value
 }
