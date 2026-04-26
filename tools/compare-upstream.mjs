@@ -1,18 +1,13 @@
 #!/usr/bin/env node
 import { execFileSync } from "node:child_process";
-import { readFileSync, readdirSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const args = process.argv.slice(2);
-const upstream = stringOption("--upstream", process.env.READABILITY_UPSTREAM);
-if (!upstream) {
-  console.error("usage: compare-upstream.mjs --upstream /path/to/mozilla/readability [--all] [--char-threshold N] [fixture ...]");
-  console.error("       or set READABILITY_UPSTREAM=/path/to/mozilla/readability");
-  process.exit(2);
-}
+const upstream = resolveUpstream();
 const goJSON = process.env.READABILITY_GO_JSON || "go";
 const require = createRequire(import.meta.url);
 const { Readability } = require(join(upstream, "index.js"));
@@ -157,6 +152,29 @@ function stringOption(name, fallback) {
     throw new Error(`${name} requires a value`);
   }
   return value;
+}
+
+function resolveUpstream() {
+  const configured = stringOption("--upstream", process.env.READABILITY_UPSTREAM);
+  if (configured) {
+    return resolve(configured);
+  }
+  const cacheDir = join(root, ".cache");
+  const upstreamDir = join(cacheDir, "mozilla-readability");
+  if (!existsSync(upstreamDir)) {
+    mkdirSync(cacheDir, { recursive: true });
+    console.error(`cloning Mozilla Readability into ${upstreamDir}`);
+    execFileSync("git", [
+      "clone",
+      "--depth",
+      "1",
+      "https://github.com/mozilla/readability.git",
+      upstreamDir,
+    ], {
+      stdio: "inherit",
+    });
+  }
+  return upstreamDir;
 }
 
 function normalizeField(field, value) {
