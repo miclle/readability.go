@@ -76,6 +76,35 @@ func TestFirstSourceBylineKeepsArticleAuthorProfileInfo(t *testing.T) {
 	}
 }
 
+func TestFirstSourceBylineSkipsCompoundAttributionBlocks(t *testing.T) {
+	data := []byte(`<html><body>
+		<article><p>Useful article text with enough context to stand on its own.</p></article>
+		<div class="byline">
+			<a class="byline__author">Jane Reporter</a>
+			<div class="byline__title">Staff Writer</div>
+		</div>
+		<div class="article-author"><a><span>Joe Writer</span></a><time>Monday, February 29, 2016 @ 11:10 PM UTC</time></div>
+	</body></html>`)
+
+	if byline := firstSourceByline(data, ""); byline != "" {
+		t.Fatalf("byline = %q", byline)
+	}
+}
+
+func TestFirstSourceBylineSkipsEntryBylineMetadataLines(t *testing.T) {
+	data := []byte(`<html><body>
+		<div class="entry-byline">
+			<span class="entry-author" itemprop="author"><a rel="author"><span itemprop="name">Entry Author</span></a></span>
+			<time datetime="2017-03-09T18:16:02-04:00">March 9, 2017</time>
+			<a class="comments-link" itemprop="discussionURL">13</a>
+		</div>
+	</body></html>`)
+
+	if byline := firstSourceByline(data, ""); byline != "" {
+		t.Fatalf("byline = %q", byline)
+	}
+}
+
 func TestSelectionInnerHTMLPreservesTextQuotes(t *testing.T) {
 	doc := mustTestDocument(t, `<div id="root"><p title="'quoted'">You're "ready"</p></div>`)
 

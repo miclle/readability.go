@@ -132,7 +132,7 @@ func firstValidSourceByline(doc *goquery.Document) string {
 }
 
 func validSourceByline(s *goquery.Selection, matchString string) bool {
-	if isFooterBylineContext(s) || isProfileWidgetBylineContext(s) {
+	if isFooterBylineContext(s) || isProfileWidgetBylineContext(s) || isCompoundBylineContext(s) {
 		return false
 	}
 	textLength := len([]rune(strings.TrimSpace(s.Text())))
@@ -141,9 +141,11 @@ func validSourceByline(s *goquery.Selection, matchString string) bool {
 	}
 	rel := attr(s, "rel")
 	itemprop := attr(s, "itemprop")
-	return rel == "author" ||
-		strings.Contains(itemprop, "author") ||
-		bylineRE.MatchString(matchString)
+	semantic := rel == "author" || strings.Contains(itemprop, "author")
+	if !semantic && isCompoundByline(s) {
+		return false
+	}
+	return semantic || bylineRE.MatchString(matchString)
 }
 
 var bylineRE = regexp.MustCompile(`(?i)byline|author|dateline|writtenby|p-author`)
@@ -177,6 +179,30 @@ func isProfileWidgetBylineContext(s *goquery.Selection) bool {
 	return false
 }
 
+func isCompoundBylineContext(s *goquery.Selection) bool {
+	for current := s; current.Length() > 0; current = current.Parent() {
+		classID := strings.ToLower(attr(current, "class") + " " + attr(current, "id"))
+		if strings.Contains(classID, "entry-byline") && isCompoundByline(current) {
+			return true
+		}
+	}
+	return false
+}
+
+func isCompoundByline(s *goquery.Selection) bool {
+	classID := strings.ToLower(attr(s, "class") + " " + attr(s, "id"))
+	if strings.Contains(classID, "byline__") {
+		return true
+	}
+	if s.Find(`[class*="byline__title"], [class*="author-title"], [class*="author-role"]`).Length() > 0 {
+		return true
+	}
+	text := normalizeSpace(s.Text())
+	return s.Find("time, [datetime], .comments-link, [itemprop~='discussionURL']").Length() > 0 ||
+		monthNameRE.MatchString(text) ||
+		dateLikeRE.MatchString(text)
+}
+
 func cleanGenericByline(byline string) string {
 	if strings.Contains(byline, "Edited by") {
 		return byline
@@ -207,6 +233,7 @@ func cleanGenericByline(byline string) string {
 }
 
 var monthNameRE = regexp.MustCompile(`\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\b`)
+var dateLikeRE = regexp.MustCompile(`\b\d{1,2}:\d{2}\b|\b\d{4}-\d{2}-\d{2}\b|\b\d{1,2}/\d{1,2}/\d{2,4}\b`)
 var relativeTimeRE = regexp.MustCompile(`^\d+\s*[hm]$`)
 
 func structuredSourceByline(doc *goquery.Document) string {
