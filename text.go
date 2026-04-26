@@ -3,19 +3,20 @@ package readability
 import (
 	"regexp"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/PuerkitoBio/goquery"
 )
 
 func textDensity(s *goquery.Selection, tags []string) float64 {
-	textLength := len([]rune(innerText(s)))
+	textLength := utf8.RuneCountInString(innerText(s))
 	if textLength == 0 {
 		return 0
 	}
 	childLength := 0
 	selector := strings.Join(tags, ", ")
 	s.Find(selector).Each(func(_ int, child *goquery.Selection) {
-		childLength += len([]rune(innerText(child)))
+		childLength += utf8.RuneCountInString(innerText(child))
 	})
 	return float64(childLength) / float64(textLength)
 }
@@ -54,7 +55,7 @@ func headerDuplicatesTitle(header *goquery.Selection, title string) bool {
 
 func shortTitleSubsetHeader(header *goquery.Selection, title string) bool {
 	headerText := normalizeSpace(header.Text())
-	return len([]rune(headerText)) <= 45 && textContainsAllTokens(title, headerText)
+	return utf8.RuneCountInString(headerText) <= 45 && textContainsAllTokens(title, headerText)
 }
 
 func textContainsAllTokens(text, subtext string) bool {
@@ -73,7 +74,7 @@ func isSkipLinkNode(s *goquery.Selection) bool {
 		return true
 	}
 	text := strings.ToLower(normalizeSpace(s.Text()))
-	return len([]rune(text)) < 100 && (strings.Contains(text, "skip navigation") || strings.Contains(text, "jump to navigation"))
+	return utf8.RuneCountInString(text) < 100 && (strings.Contains(text, "skip navigation") || strings.Contains(text, "jump to navigation"))
 }
 
 func textSimilarity(textA, textB string) float64 {

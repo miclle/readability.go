@@ -3,6 +3,7 @@ package readability
 import (
 	stdhtml "html"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/PuerkitoBio/goquery"
 	xhtml "golang.org/x/net/html"
@@ -11,20 +12,20 @@ import (
 // extractArticleContent is the parser entry point that turns a parsed
 // HTML document into the final article subtree. The function follows a
 // strict order:
-//   1. Pre-cleanup: remove scripts/styles/comments, replace <font> with
-//      <span>, collapse <br> runs into <p>, drop hidden elements, and
-//      resolve relative URLs. fallbackDoc is captured before the
-//      destructive scoring pass so retries can score against pristine
-//      markup.
-//   2. Legacy table fixtures: when the document looks like a 90s
-//      newspaper layout (single article inside a table), bypass scoring.
-//   3. Explicit articleBody descriptions: certain CMS templates expose
-//      `[class*=components-description]` blocks that already are the
-//      article and don't survive scoring well.
-//   4. Standard scoring via bestArticleCandidate.
-//   5. Multiple fallbacks if the candidate is too short, looks like a
-//      print-message page, or matches the "form contents" footer
-//      pattern. Each fallback selects from the pristine fallbackDoc.
+//  1. Pre-cleanup: remove scripts/styles/comments, replace <font> with
+//     <span>, collapse <br> runs into <p>, drop hidden elements, and
+//     resolve relative URLs. fallbackDoc is captured before the
+//     destructive scoring pass so retries can score against pristine
+//     markup.
+//  2. Legacy table fixtures: when the document looks like a 90s
+//     newspaper layout (single article inside a table), bypass scoring.
+//  3. Explicit articleBody descriptions: certain CMS templates expose
+//     `[class*=components-description]` blocks that already are the
+//     article and don't survive scoring well.
+//  4. Standard scoring via bestArticleCandidate.
+//  5. Multiple fallbacks if the candidate is too short, looks like a
+//     print-message page, or matches the "form contents" footer
+//     pattern. Each fallback selects from the pristine fallbackDoc.
 func extractArticleContent(doc *goquery.Document, pageURL string, title string, cfg parserConfig) *goquery.Selection {
 	unwrapNoscriptImages(doc)
 	doc.Find("script, style, noscript").Remove()
@@ -49,7 +50,7 @@ func extractArticleContent(doc *goquery.Document, pageURL string, title string, 
 		return candidate
 	}
 	candidate := bestArticleCandidate(doc, title, cfg)
-	if len([]rune(innerText(candidate))) < 100 {
+	if utf8.RuneCountInString(innerText(candidate)) < 100 {
 		if fallback := fallbackArticleSelection(fallbackDoc); fallback.Length() > 0 {
 			candidate = wrapArticleSelection(fallback)
 		} else if relaxed := relaxedArticleSelection(fallbackDoc, title, cfg); relaxed.Length() > 0 {
@@ -70,7 +71,7 @@ func extractArticleContent(doc *goquery.Document, pageURL string, title string, 
 			cleanArticleCandidateConfig(candidate, cfg)
 		}
 	}
-	if len([]rune(innerText(candidate))) < 100 {
+	if utf8.RuneCountInString(innerText(candidate)) < 100 {
 		if fallback := fallbackArticleSelection(fallbackDoc); fallback.Length() > 0 {
 			candidate = wrapArticleSelection(fallback)
 			cleanArticleCandidateConfig(candidate, cfg)
@@ -83,9 +84,10 @@ func extractArticleContent(doc *goquery.Document, pageURL string, title string, 
 // scoring pass produced too little content (< 100 chars). Each rung
 // progressively relaxes the heuristics on a fresh clone of the
 // fallbackDoc so cleanup state from earlier rungs cannot leak:
-//   1. drop StripUnlikely (keep class weighting and conditional cleanup)
-//   2. also drop class weighting
-//   3. also drop conditional cleanup
+//  1. drop StripUnlikely (keep class weighting and conditional cleanup)
+//  2. also drop class weighting
+//  3. also drop conditional cleanup
+//
 // The first rung that yields >= 100 chars wins. Returns an empty
 // selection when even the most permissive rung fails.
 func relaxedArticleSelection(doc *goquery.Document, title string, cfg parserConfig) *goquery.Selection {
@@ -109,11 +111,11 @@ func relaxedArticleSelection(doc *goquery.Document, title string, cfg parserConf
 	for _, attempt := range attempts {
 		relaxedDoc := cloneDocument(doc)
 		candidate := bestArticleCandidateWithOptions(relaxedDoc, title, attempt.scoring)
-		if len([]rune(innerText(candidate))) < 100 {
+		if utf8.RuneCountInString(innerText(candidate)) < 100 {
 			continue
 		}
 		cleanArticleCandidateWithOptions(candidate, attempt.clean)
-		if len([]rune(innerText(candidate))) >= 100 {
+		if utf8.RuneCountInString(innerText(candidate)) >= 100 {
 			return candidate
 		}
 	}
@@ -271,7 +273,7 @@ func bestSelectionByTextLength(nodes *goquery.Selection) *goquery.Selection {
 	var best *goquery.Selection
 	bestLength := 0
 	nodes.Each(func(_ int, s *goquery.Selection) {
-		length := len([]rune(innerText(s)))
+		length := utf8.RuneCountInString(innerText(s))
 		if length >= 100 && length > bestLength {
 			best = s
 			bestLength = length
@@ -285,7 +287,7 @@ func bestSelectionByTextLength(nodes *goquery.Selection) *goquery.Selection {
 
 func explicitArticleDescription(doc *goquery.Document) *goquery.Selection {
 	return doc.Find(`[class*="components-description"], [class*="article-description"]`).FilterFunction(func(_ int, s *goquery.Selection) bool {
-		return len([]rune(innerText(s))) >= 100
+		return utf8.RuneCountInString(innerText(s)) >= 100
 	}).First()
 }
 

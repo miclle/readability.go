@@ -2,6 +2,7 @@ package readability
 
 import (
 	"strings"
+	"unicode/utf8"
 
 	"github.com/PuerkitoBio/goquery"
 	xhtml "golang.org/x/net/html"
@@ -37,7 +38,7 @@ func bestLegacyTableCell(doc *goquery.Document) *goquery.Selection {
 		if !isLegacyMainTableCell(s) {
 			return
 		}
-		textLength := len([]rune(innerText(s)))
+		textLength := utf8.RuneCountInString(innerText(s))
 		score := float64(textLength) * (1 - linkDensity(s))
 		if score <= bestScore {
 			return
@@ -62,7 +63,7 @@ func isLegacyMainTableCell(s *goquery.Selection) bool {
 	if previousElementSibling(node) == nil || nextElementSibling(node) == nil {
 		return false
 	}
-	if len([]rune(innerText(s))) < 300 {
+	if utf8.RuneCountInString(innerText(s)) < 300 {
 		return false
 	}
 	return linkDensity(s) < 0.65

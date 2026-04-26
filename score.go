@@ -3,6 +3,7 @@ package readability
 import (
 	"math"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/PuerkitoBio/goquery"
 	xhtml "golang.org/x/net/html"
@@ -43,7 +44,7 @@ func bestArticleCandidateWithOptions(doc *goquery.Document, title string, option
 	var candidates []*xhtml.Node
 	doc.Find("section, h2, h3, h4, h5, h6, p, td, pre").Each(func(_ int, element *goquery.Selection) {
 		text := innerText(element)
-		if len([]rune(text)) < 25 {
+		if utf8.RuneCountInString(text) < 25 {
 			return
 		}
 		ancestors := nodeAncestors(element.Get(0), 5)
@@ -52,7 +53,7 @@ func bestArticleCandidateWithOptions(doc *goquery.Document, title string, option
 		}
 		contentScore := 1.0
 		contentScore += float64(commaCount(text) + 1)
-		contentScore += math.Min(float64(len([]rune(text))/100), 3)
+		contentScore += math.Min(float64(utf8.RuneCountInString(text)/100), 3)
 		for level, ancestor := range ancestors {
 			if ancestor.Type != xhtml.ElementNode || ancestor.Parent == nil {
 				continue
@@ -329,7 +330,7 @@ func buildArticleContent(top *xhtml.Node, scores map[*xhtml.Node]float64, topSco
 			} else if tagNameNode(sibling) == "p" {
 				s := selectionForNode(sibling)
 				text := innerText(s)
-				textLen := len([]rune(text))
+				textLen := utf8.RuneCountInString(text)
 				density := linkDensity(s)
 				appendSibling = (textLen > 80 && density < 0.25) ||
 					(textLen > 0 && textLen < 80 && density == 0 && strings.Contains(text, "."))
@@ -427,7 +428,7 @@ func classWeight(s *goquery.Selection) float64 {
 }
 
 func linkDensity(s *goquery.Selection) float64 {
-	textLength := len([]rune(innerText(s)))
+	textLength := utf8.RuneCountInString(innerText(s))
 	if textLength == 0 {
 		return 0
 	}
@@ -437,7 +438,7 @@ func linkDensity(s *goquery.Selection) float64 {
 		if hashURLRE.MatchString(attr(link, "href")) {
 			coefficient = 0.3
 		}
-		linkLength += float64(len([]rune(innerText(link)))) * coefficient
+		linkLength += float64(utf8.RuneCountInString(innerText(link))) * coefficient
 	})
 	return linkLength / float64(textLength)
 }

@@ -3,6 +3,7 @@ package readability
 import (
 	"math"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/PuerkitoBio/goquery"
 	xhtml "golang.org/x/net/html"
@@ -339,12 +340,12 @@ func removeCompatibilityHorizontalRules(root *goquery.Selection) {
 func isDisclaimerLikeBlock(text string) bool {
 	lower := strings.ToLower(text)
 	return strings.Contains(lower, "disclaimer") &&
-		(len([]rune(text)) < 200 || strings.Contains(lower, "copyright") || strings.Contains(lower, "license"))
+		(utf8.RuneCountInString(text) < 200 || strings.Contains(lower, "copyright") || strings.Contains(lower, "license"))
 }
 
 func isTrademarkNoticeBlock(text string) bool {
 	lower := strings.ToLower(text)
-	return len([]rune(text)) < 160 &&
+	return utf8.RuneCountInString(text) < 160 &&
 		(strings.Contains(lower, "service mark") || strings.Contains(lower, "trademark"))
 }
 
@@ -454,7 +455,7 @@ func isMediaPlayerContainer(s *goquery.Selection) bool {
 }
 
 func isControlPlaceholderText(text string) bool {
-	if text == "" || len([]rune(text)) > 8 {
+	if text == "" || utf8.RuneCountInString(text) > 8 {
 		return false
 	}
 	for _, r := range text {

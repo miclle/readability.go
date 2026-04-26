@@ -2,6 +2,7 @@ package readability
 
 import (
 	"strings"
+	"unicode/utf8"
 
 	"github.com/PuerkitoBio/goquery"
 	xhtml "golang.org/x/net/html"
@@ -132,7 +133,7 @@ func removeArticleNoiseBlocks(article *goquery.Selection) {
 			s.Remove()
 			return
 		}
-		if isBylineCandidate(s) && len([]rune(normalizeSpace(s.Text()))) < 200 &&
+		if isBylineCandidate(s) && utf8.RuneCountInString(normalizeSpace(s.Text())) < 200 &&
 			!isInsideCollectionHighlights(s) && !hasAncestorNodeID(s.Get(0), "site-content") {
 			if hasAncestorNodeID(s.Get(0), "comments") {
 				return
@@ -236,7 +237,7 @@ func removeUnlikelyArticleElements(article *goquery.Selection, cfg parserConfig)
 		}
 		text := innerText(s)
 		if strings.Contains(classID, "like-post-wrapper") ||
-			(len([]rune(text)) < 200 && strings.Contains(strings.ToLower(text), "like this:") && strings.Contains(strings.ToLower(text), "loading")) ||
+			(utf8.RuneCountInString(text) < 200 && strings.Contains(strings.ToLower(text), "like this:") && strings.Contains(strings.ToLower(text), "loading")) ||
 			isLoadingPlaceholderText(text) {
 			s.Remove()
 			return
@@ -375,7 +376,7 @@ func removePlainBylineParagraphs(root *goquery.Selection) {
 		if text == "" {
 			return
 		}
-		if len([]rune(text)) >= 120 || !strings.HasPrefix(text, "By ") {
+		if utf8.RuneCountInString(text) >= 120 || !strings.HasPrefix(text, "By ") {
 			seenBodyText = true
 			return
 		}
@@ -390,7 +391,7 @@ func removePlainBylineParagraphs(root *goquery.Selection) {
 
 func isLeadingMetadataBlock(s *goquery.Selection) bool {
 	text := normalizeSpace(s.Text())
-	if text == "" || len([]rune(text)) > 120 || s.Find("a, img, iframe, video, audio").Length() > 0 {
+	if text == "" || utf8.RuneCountInString(text) > 120 || s.Find("a, img, iframe, video, audio").Length() > 0 {
 		return false
 	}
 	if leadingDateRE.MatchString(text) {

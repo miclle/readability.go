@@ -10,6 +10,7 @@ import (
 	"io"
 	"regexp"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/PuerkitoBio/goquery"
 )
@@ -173,7 +174,7 @@ func FromReader(r io.Reader, pageURL string, options *Options) (Article, error) 
 
 	content := extractArticleContent(doc, pageURL, title, cfg)
 	rawTextContent := strings.TrimSpace(content.Text())
-	if options != nil && options.CharThreshold > 0 && len([]rune(rawTextContent)) < options.CharThreshold {
+	if options != nil && options.CharThreshold > 0 && utf8.RuneCountInString(rawTextContent) < options.CharThreshold {
 		return Article{}, ErrBelowCharThreshold
 	}
 	nbspEntity := preferredNBSPSerializedEntity(data)
@@ -203,7 +204,7 @@ func FromReader(r io.Reader, pageURL string, options *Options) (Article, error) 
 		Title:         title,
 		Content:       `<div id="readability-page-1" class="page">` + htmlContent + `</div>`,
 		TextContent:   textContent,
-		Length:        len([]rune(textContent)),
+		Length:        utf8.RuneCountInString(textContent),
 		Excerpt:       excerpt,
 		Byline:        byline,
 		Dir:           articleDirection(content),

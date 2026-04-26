@@ -4,6 +4,7 @@ import (
 	"io"
 	"math"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/PuerkitoBio/goquery"
 )
@@ -52,7 +53,7 @@ func IsProbablyReaderable(r io.Reader, options ...ReaderableOptions) (bool, erro
 		if goquery.NodeName(s.Parent()) == "li" && goquery.NodeName(s) == "p" {
 			return true
 		}
-		textLen := len([]rune(normalizeSpace(s.Text())))
+		textLen := utf8.RuneCountInString(normalizeSpace(s.Text()))
 		if textLen < minContentLength {
 			return true
 		}

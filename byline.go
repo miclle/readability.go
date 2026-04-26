@@ -5,6 +5,7 @@ import (
 	stdhtml "html"
 	"regexp"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/PuerkitoBio/goquery"
 )
@@ -94,7 +95,7 @@ func isInlineAuthorsAttribution(s *goquery.Selection) bool {
 func isBylineText(text string) bool {
 	normalized := normalizeSpace(text)
 	return strings.HasPrefix(normalized, "// By ") ||
-		(strings.HasPrefix(normalized, "By ") && len([]rune(normalized)) < 80)
+		(strings.HasPrefix(normalized, "By ") && utf8.RuneCountInString(normalized) < 80)
 }
 
 func firstValidSourceByline(doc *goquery.Document) string {
@@ -121,7 +122,7 @@ func validSourceByline(s *goquery.Selection, matchString string) bool {
 	if isFooterBylineContext(s) || isProfileWidgetBylineContext(s) || isCompoundBylineContext(s) {
 		return false
 	}
-	textLength := len([]rune(strings.TrimSpace(s.Text())))
+	textLength := utf8.RuneCountInString(strings.TrimSpace(s.Text()))
 	if textLength == 0 || textLength >= 100 {
 		return false
 	}

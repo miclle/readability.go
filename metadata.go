@@ -55,7 +55,7 @@ func articleTitleFromDocument(doc *goquery.Document, title string) string {
 				current = original
 			}
 		}
-	} else if len([]rune(current)) > 150 || len([]rune(current)) < 15 {
+	} else if utf8.RuneCountInString(current) > 150 || utf8.RuneCountInString(current) < 15 {
 		h1s := doc.Find("h1")
 		if h1s.Length() == 1 {
 			if h1 := strings.TrimSpace(h1s.First().Text()); h1 != "" {
@@ -84,13 +84,13 @@ func cleanTitle(title string) string {
 	}
 	for _, sep := range []string{" · ", " – ", " - "} {
 		parts := strings.Split(title, sep)
-		if len(parts) == 2 && len([]rune(parts[0])) >= 15 && len([]rune(parts[1])) <= 40 {
+		if len(parts) == 2 && utf8.RuneCountInString(parts[0]) >= 15 && utf8.RuneCountInString(parts[1]) <= 40 {
 			title = parts[0]
 			break
 		}
 	}
 	if before, after, ok := strings.Cut(title, ": "); ok &&
-		len([]rune(before)) <= 40 && len([]rune(after)) >= 8 {
+		utf8.RuneCountInString(before) <= 40 && utf8.RuneCountInString(after) >= 8 {
 		return after
 	}
 	return title

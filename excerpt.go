@@ -5,6 +5,7 @@ import (
 	stdhtml "html"
 	"regexp"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/PuerkitoBio/goquery"
 )
@@ -31,7 +32,7 @@ func firstExcerptText(s *goquery.Selection, title string) string {
 		}
 		normalizedText := normalizeSpace(text)
 		if normalizedText != "" && normalizedTitle != "" &&
-			len([]rune(normalizedText)) <= len([]rune(normalizedTitle))+20 &&
+			utf8.RuneCountInString(normalizedText) <= utf8.RuneCountInString(normalizedTitle)+20 &&
 			(strings.Contains(normalizedTitle, normalizedText) || strings.Contains(normalizedText, normalizedTitle)) {
 			return true
 		}
@@ -77,7 +78,7 @@ func firstMathHeavyShortExcerpt(doc *goquery.Document) string {
 	}
 	return firstSelectionText(doc.Find("p").FilterFunction(func(_ int, s *goquery.Selection) bool {
 		text := normalizeSpace(s.Text())
-		return text != "" && len([]rune(text)) < 25
+		return text != "" && utf8.RuneCountInString(text) < 25
 	}).First())
 }
 
@@ -96,7 +97,7 @@ func firstBreadcrumbExcerpt(doc *goquery.Document, title string) string {
 			return true
 		}
 		text := normalizeSpace(s.Text())
-		if text == "" || !strings.Contains(text, ">") || len([]rune(text)) > 200 {
+		if text == "" || !strings.Contains(text, ">") || utf8.RuneCountInString(text) > 200 {
 			return true
 		}
 		if titleHead != "" && !strings.Contains(text, titleHead) {
@@ -138,7 +139,7 @@ func firstSourceExcerpt(data []byte, parsedExcerpt string) string {
 			return true
 		}
 		if strings.HasPrefix(textCompact, parsedCompact) && normalizeSpace(text) != normalizeSpace(parsedExcerpt) {
-			text = strings.TrimSpace(firstRunes(text, len([]rune(parsedExcerpt))))
+			text = strings.TrimSpace(firstRunes(text, utf8.RuneCountInString(parsedExcerpt)))
 		}
 		excerpt = stdhtml.UnescapeString(text)
 		return false

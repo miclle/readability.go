@@ -4,6 +4,7 @@ import (
 	"math"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/PuerkitoBio/goquery"
 	xhtml "golang.org/x/net/html"
@@ -67,9 +68,9 @@ func shouldRemoveConditionally(s *goquery.Selection, tag string, options conditi
 	if !isList {
 		listLength := 0
 		s.Find("ul, ol").Each(func(_ int, list *goquery.Selection) {
-			listLength += len([]rune(innerText(list)))
+			listLength += utf8.RuneCountInString(innerText(list))
 		})
-		isList = float64(listLength)/float64(len([]rune(text))) > 0.9
+		isList = float64(listLength)/float64(utf8.RuneCountInString(text)) > 0.9
 	}
 
 	weight := 0.0
@@ -93,7 +94,7 @@ func shouldRemoveConditionally(s *goquery.Selection, tag string, options conditi
 	input := s.Find("input").Length()
 	headingDensity := textDensity(s, []string{"h1", "h2", "h3", "h4", "h5", "h6"})
 	embedCount := removableEmbedCount(s, options.Config)
-	contentLength := len([]rune(text))
+	contentLength := utf8.RuneCountInString(text)
 	density := linkDensity(s)
 	textishTags := []string{"span", "li", "td", "address", "blockquote", "dd", "div", "dl", "dt", "figcaption", "h1", "h2", "h3", "h4", "h5", "h6", "p", "pre", "time"}
 	usefulTextDensity := textDensity(s, textishTags)
