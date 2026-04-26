@@ -113,3 +113,25 @@ func TestOptionsNbTopCandidatesUsesProvidedValue(t *testing.T) {
 		t.Fatalf("TextContent = %q", article.TextContent)
 	}
 }
+
+func TestOptionsLinkDensityModifierRelaxesCleanup(t *testing.T) {
+	// A div with high link density (>0.5) and weight >=25 (positive class
+	// "article" + id "content") would normally be stripped by conditional
+	// cleanup. A positive LinkDensityModifier raises the threshold past
+	// the actual density, so the same document survives.
+	const sample = `<html><body>
+<div id="content" class="article">
+<p>The article body needs enough plain prose to keep the candidate substantial during scoring before any conditional cleanup runs over the wrapping div containers.</p>
+<p>This second paragraph contains <a href="https://example.com/a">link one</a>, <a href="https://example.com/b">link two</a>, <a href="https://example.com/c">link three</a>, <a href="https://example.com/d">link four</a> in close proximity.</p>
+</div>
+</body></html>`
+
+	relaxed, err := FromReader(strings.NewReader(sample), "https://example.com/story",
+		&Options{LinkDensityModifier: 0.5})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if relaxed.TextContent == "" {
+		t.Fatalf("expected non-empty TextContent with LinkDensityModifier relaxed, got empty")
+	}
+}

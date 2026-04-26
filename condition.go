@@ -112,10 +112,10 @@ func shouldRemoveConditionally(s *goquery.Selection, tag string, options conditi
 	if !isList && !isFigureChild && headingDensity < 0.9 && contentLength < 25 && (img == 0 || img > 2) && density > 0 {
 		remove = true
 	}
-	if !isList && weight < 25 && density > 0.2 {
+	if !isList && weight < 25 && density > 0.2+options.Config.linkDensityModifier {
 		remove = true
 	}
-	if weight >= 25 && density > 0.5 {
+	if weight >= 25 && density > 0.5+options.Config.linkDensityModifier {
 		remove = true
 	}
 	if (embedCount == 1 && contentLength < 75) || embedCount > 1 {

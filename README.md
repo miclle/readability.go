@@ -109,13 +109,14 @@ configuration knobs:
 
 ```go
 opts := &readability.Options{
-	CharThreshold:     500,                                    // skip docs shorter than 500 chars
-	ClassesToPreserve: []string{"caption", "highlight"},      // extra classes kept during cleanup
-	KeepClasses:       false,                                  // true keeps every class attribute
-	NbTopCandidates:   5,                                      // candidate pool size during scoring
-	DisableJSONLD:     false,                                  // skip JSON-LD metadata extraction
-	AllowedVideoRegex: nil,                                    // override built-in video allow list
-	MaxElemsToParse:   0,                                      // > 0 aborts on huge documents with ErrTooManyElements
+	CharThreshold:       500,                                    // skip docs shorter than 500 chars
+	ClassesToPreserve:   []string{"caption", "highlight"},      // extra classes kept during cleanup
+	KeepClasses:         false,                                  // true keeps every class attribute
+	NbTopCandidates:     5,                                      // candidate pool size during scoring
+	DisableJSONLD:       false,                                  // skip JSON-LD metadata extraction
+	AllowedVideoRegex:   nil,                                    // override built-in video allow list
+	MaxElemsToParse:     0,                                      // > 0 aborts on huge documents with ErrTooManyElements
+	LinkDensityModifier: 0,                                      // shifts conditional-cleanup link-density thresholds (positive = looser)
 }
 article, err := readability.FromReader(f, pageURL, opts)
 ```

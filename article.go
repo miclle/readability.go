@@ -75,6 +75,12 @@ type Options struct {
 	// MaxElemsToParse aborts parsing when the document contains more than
 	// this many elements. Zero or negative disables the limit.
 	MaxElemsToParse int
+
+	// LinkDensityModifier shifts the link-density thresholds used by the
+	// conditional cleanup pass. The default of 0 matches mozilla/readability;
+	// positive values relax cleanup (allow higher link density), negative
+	// values tighten it. Mirrors upstream's `linkDensityModifier` option.
+	LinkDensityModifier float64
 }
 
 // ErrTooManyElements is returned when MaxElemsToParse is exceeded.
@@ -88,12 +94,13 @@ var ErrBelowCharThreshold = errors.New("readability: extracted text below CharTh
 
 // parserConfig is the resolved, internal form of Options.
 type parserConfig struct {
-	classesToPreserve []string
-	keepClasses       bool
-	nbTopCandidates   int
-	disableJSONLD     bool
-	allowedVideoRegex *regexp.Regexp
-	maxElemsToParse   int
+	classesToPreserve   []string
+	keepClasses         bool
+	nbTopCandidates     int
+	disableJSONLD       bool
+	allowedVideoRegex   *regexp.Regexp
+	maxElemsToParse     int
+	linkDensityModifier float64
 }
 
 // defaultClassesToPreserve mirrors mozilla/readability's default of ["caption"].
@@ -121,6 +128,7 @@ func newParserConfig(options *Options) parserConfig {
 	if options.MaxElemsToParse > 0 {
 		cfg.maxElemsToParse = options.MaxElemsToParse
 	}
+	cfg.linkDensityModifier = options.LinkDensityModifier
 	return cfg
 }
 
