@@ -91,6 +91,24 @@ func TestFirstSourceBylineSkipsCompoundAttributionBlocks(t *testing.T) {
 	}
 }
 
+func TestFirstSourceBylineKeepsDatedBylines(t *testing.T) {
+	data := []byte(`<html><body>
+		<div class="FeatureByline">By <b>Nathan Willis</b> March 25, 2015</div>
+	</body></html>`)
+
+	if byline := firstSourceByline(data, ""); byline != "By Nathan Willis March 25, 2015" {
+		t.Fatalf("byline = %q", byline)
+	}
+
+	data = []byte(`<html><body>
+		<div class="byline">Last Updated: January 7, 2025</div>
+	</body></html>`)
+
+	if byline := firstSourceByline(data, ""); byline != "Last Updated: January 7, 2025" {
+		t.Fatalf("byline = %q", byline)
+	}
+}
+
 func TestFirstSourceBylineSkipsEntryBylineMetadataLines(t *testing.T) {
 	data := []byte(`<html><body>
 		<div class="entry-byline">

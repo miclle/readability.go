@@ -198,9 +198,19 @@ func isCompoundByline(s *goquery.Selection) bool {
 		return true
 	}
 	text := normalizeSpace(s.Text())
+	if isDatedBylineText(text) {
+		return false
+	}
 	return s.Find("time, [datetime], .comments-link, [itemprop~='discussionURL']").Length() > 0 ||
 		monthNameRE.MatchString(text) ||
 		dateLikeRE.MatchString(text)
+}
+
+func isDatedBylineText(text string) bool {
+	lower := strings.ToLower(strings.TrimSpace(text))
+	return strings.HasPrefix(lower, "by ") ||
+		strings.HasPrefix(lower, "last updated:") ||
+		strings.HasPrefix(lower, "last updated ")
 }
 
 func cleanGenericByline(byline string) string {
