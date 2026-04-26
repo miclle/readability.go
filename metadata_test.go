@@ -73,10 +73,46 @@ func TestCleanTitleRemovesGenericSiteSuffixAndSectionPrefix(t *testing.T) {
 }
 
 func TestFallbackTitleUsesSingleH1WhenTitleIsTooShort(t *testing.T) {
-	doc := mustTestDocument(t, `<html><head><title>Home</title></head><body><h1>Useful Article Title</h1></body></html>`)
+	doc := mustTestDocument(t, `<html><head><title>Home</title></head><body><h1>This is a useful article title</h1></body></html>`)
 
 	got := fallbackTitle(doc)
-	if got != "Useful Article Title" {
+	if got != "This is a useful article title" {
+		t.Fatalf("fallbackTitle = %q", got)
+	}
+}
+
+func TestFallbackTitleRemovesSiteSuffix(t *testing.T) {
+	doc := mustTestDocument(t, `<html><head><title>This is a useful article title - Example Site</title></head></html>`)
+
+	got := fallbackTitle(doc)
+	if got != "This is a useful article title" {
+		t.Fatalf("fallbackTitle = %q", got)
+	}
+}
+
+func TestFallbackTitleKeepsShortNonHierarchicalTitles(t *testing.T) {
+	doc := mustTestDocument(t, `<html><head><title>Site - Useful Article Title</title></head></html>`)
+
+	got := fallbackTitle(doc)
+	if got != "Site - Useful Article Title" {
+		t.Fatalf("fallbackTitle = %q", got)
+	}
+}
+
+func TestFallbackTitleExtractsColonTitleWithoutMatchingHeading(t *testing.T) {
+	doc := mustTestDocument(t, `<html><head><title>Example Site: This is a useful article title</title></head><body><h1>Different heading</h1></body></html>`)
+
+	got := fallbackTitle(doc)
+	if got != "This is a useful article title" {
+		t.Fatalf("fallbackTitle = %q", got)
+	}
+}
+
+func TestFallbackTitleKeepsColonTitleWithMatchingHeading(t *testing.T) {
+	doc := mustTestDocument(t, `<html><head><title>Example Site: This is a useful article title</title></head><body><h1>Example Site: This is a useful article title</h1></body></html>`)
+
+	got := fallbackTitle(doc)
+	if got != "Example Site: This is a useful article title" {
 		t.Fatalf("fallbackTitle = %q", got)
 	}
 }

@@ -15,21 +15,65 @@ import (
 
 func fallbackTitle(doc *goquery.Document) string {
 	if title := strings.TrimSpace(doc.Find("title").First().Text()); title != "" {
-		cleaned := cleanTitle(title)
-		if len([]rune(cleaned)) > 150 || len([]rune(cleaned)) < 15 {
-			h1s := doc.Find("h1")
-			if h1s.Length() == 1 {
-				if h1 := strings.TrimSpace(h1s.First().Text()); h1 != "" {
-					return cleanTitle(h1)
-				}
-			}
-		}
-		return cleaned
+		return articleTitleFromDocument(doc, title)
 	}
 	if h1 := strings.TrimSpace(doc.Find("h1").First().Text()); h1 != "" {
-		return cleanTitle(h1)
+		return normalizeSpace(h1)
 	}
 	return ""
+}
+
+func articleTitleFromDocument(doc *goquery.Document, title string) string {
+	original := normalizeSpace(title)
+	current := original
+	hadHierarchicalSeparators := false
+
+	matches := titleSeparatorRE.FindAllStringIndex(current, -1)
+	if len(matches) > 0 {
+		hadHierarchicalSeparators = hierarchicalTitleSeparatorRE.MatchString(current)
+		last := matches[len(matches)-1]
+		current = original[:last[0]]
+		if titleWordCount(current) < 3 {
+			first := matches[0]
+			current = original[first[1]:]
+		}
+	} else if strings.Contains(current, ": ") {
+		trimmed := strings.TrimSpace(current)
+		matchesHeading := false
+		doc.Find("h1, h2").EachWithBreak(func(_ int, heading *goquery.Selection) bool {
+			if strings.TrimSpace(heading.Text()) == trimmed {
+				matchesHeading = true
+				return false
+			}
+			return true
+		})
+		if !matchesHeading {
+			current = original[strings.LastIndex(original, ":")+1:]
+			if titleWordCount(current) < 3 {
+				current = original[strings.Index(original, ":")+1:]
+			} else if titleWordCount(original[:strings.Index(original, ":")]) > 5 {
+				current = original
+			}
+		}
+	} else if len([]rune(current)) > 150 || len([]rune(current)) < 15 {
+		h1s := doc.Find("h1")
+		if h1s.Length() == 1 {
+			if h1 := strings.TrimSpace(h1s.First().Text()); h1 != "" {
+				current = h1
+			}
+		}
+	}
+
+	current = normalizeSpace(current)
+	if titleWordCount(current) <= 4 &&
+		(!hadHierarchicalSeparators || titleWordCount(current) != titleWordCount(titleSeparatorRE.ReplaceAllString(original, ""))-1) {
+		current = original
+	}
+	return current
+}
+
+func titleWordCount(value string) int {
+	return len(strings.Fields(strings.TrimSpace(value)))
 }
 
 func cleanTitle(title string) string {
@@ -425,6 +469,8 @@ func attr(s *goquery.Selection, name string) string {
 
 var whitespaceRE = regexp.MustCompile(`\s+`)
 var metaPropertyRE = regexp.MustCompile(`(?i)\s*(article|dc|dcterm|og|twitter)\s*:\s*(author|creator|description|published_time|title|site_name)\s*`)
+var titleSeparatorRE = regexp.MustCompile(`\s[\|\-–—\\/>»]\s`)
+var hierarchicalTitleSeparatorRE = regexp.MustCompile(`\s[\\/>»]\s`)
 
 func normalizeSpace(s string) string {
 	return strings.TrimSpace(whitespaceRE.ReplaceAllString(s, " "))
