@@ -20,6 +20,20 @@ The implementation is intentionally self-contained and does not depend on
 other Go Readability ports. Current work is focused on replacing broad
 heuristics with fixture-proven compatibility behavior from Readability.js.
 
+## Implementation Layout
+
+The public entry point lives in `article.go`. The parser implementation is
+split by responsibility:
+
+- `extract.go` coordinates article extraction and fallback selection.
+- `score.go` scores article candidates and builds the final content tree.
+- `clean.go`, `condition.go`, `normalize.go`, and `media.go` clean and
+  normalize extracted content.
+- `compat.go` and `legacy.go` hold fixture-proven compatibility behavior that
+  is intentionally kept separate from the generic parser flow.
+- `metadata.go`, `excerpt.go`, and `byline.go` extract document metadata.
+- `dom.go` and `url.go` provide DOM and URL helpers used across the parser.
+
 ## Usage
 
 ```go

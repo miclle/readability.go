@@ -63,8 +63,9 @@ func IsProbablyReaderable(r io.Reader, options ...ReaderableOptions) (bool, erro
 
 func isProbablyVisible(s *goquery.Selection) bool {
 	style := strings.ToLower(attr(s, "style"))
+	_, hidden := s.Attr("hidden")
 	return !strings.Contains(style, "display:none") &&
 		!strings.Contains(style, "display: none") &&
-		attr(s, "hidden") == "" &&
+		!hidden &&
 		strings.ToLower(attr(s, "aria-hidden")) != "true"
 }

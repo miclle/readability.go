@@ -1,0 +1,383 @@
+package readability
+
+import (
+	"strings"
+
+	"github.com/PuerkitoBio/goquery"
+	xhtml "golang.org/x/net/html"
+)
+
+func cleanArticleCandidate(article *goquery.Selection) {
+	article.Find("form, fieldset, aside, footer, menu, script, style, noscript, input, textarea, select, button, link").Remove()
+	article.Find("#respond").Remove()
+	article.Find("nav").FilterFunction(func(_ int, s *goquery.Selection) bool {
+		return attr(s, "id") != "adjacent-posts" &&
+			attr(s, "role") != "tablist" && s.Find(`[role="tablist"]`).Length() == 0
+	}).Remove()
+	article.Find("object, embed").Remove()
+	removeKinjaLightboxControls(article)
+	normalizeFallbackContentContainers(article)
+	normalizeEntryHeaders(article)
+	wrapAttachmentImageLinks(article)
+	restoreStoryContinueLinks(article)
+	replaceJavascriptLinks(article)
+	article.Find("iframe").Each(func(_ int, s *goquery.Selection) {
+		src := attr(s, "src")
+		if !videoURLRE.MatchString(src) {
+			s.Remove()
+		}
+	})
+	article.Find("audio").Each(func(_ int, s *goquery.Selection) {
+		if attr(s, "src") == "" {
+			s.Remove()
+		}
+	})
+	article.Find("*").Each(func(_ int, s *goquery.Selection) {
+		if isRelatedReadingBlock(s) {
+			s.Remove()
+			return
+		}
+		if attr(s, "id") == "whats-next" {
+			s.Remove()
+			return
+		}
+		if isBylineCandidate(s) && len([]rune(normalizeSpace(s.Text()))) < 200 &&
+			!hasAncestorNodeID(s.Get(0), "collection-highlights-container") && !hasAncestorNodeID(s.Get(0), "site-content") {
+			if hasAncestorNodeID(s.Get(0), "comments") {
+				return
+			}
+			if tagNameNode(s.Get(0)) == "a" && strings.HasPrefix(attr(s, "id"), "ref-") {
+				return
+			}
+			if normalizeSpace(s.Text()) == "" && s.Find("img").Length() > 0 {
+				return
+			}
+			if isAuthorBioSection(s) {
+				return
+			}
+			if isInlineAuthorsAttribution(s) {
+				return
+			}
+			if s.Find(`[data-activity-map="expanded-byline-article-bottom"]`).Length() > 0 {
+				return
+			}
+			if attr(s, "data-activity-map") == "expanded-byline-article-bottom" {
+				return
+			}
+			if hasAncestorNodeAttr(s.Get(0), "data-activity-map", "expanded-byline-article-bottom") {
+				return
+			}
+			if isAuthorSemanticNode(s) {
+				s.Remove()
+				return
+			}
+			if tagNameNode(s.Get(0)) == "time" {
+				return
+			}
+			if s.Find("time").Length() > 0 {
+				s.Find("ol, ul, [itemprop~='author'], [rel='author']").Remove()
+				if normalizeSpace(s.Text()) == "" {
+					s.Remove()
+				}
+				return
+			}
+			s.Remove()
+		}
+	})
+	removePlainBylineParagraphs(article)
+	removeLeadingMetadataBlocks(article)
+	article.Find("h1").Each(func(_ int, s *goquery.Selection) {
+		if node := s.Get(0); node != nil {
+			node.Data = "h2"
+		}
+	})
+	article.Find("br").Each(func(_ int, s *goquery.Selection) {
+		br := s.Get(0)
+		if br != nil && tagNameNode(nextNodeSkippingWhitespace(br.NextSibling)) == "p" {
+			removeNode(br)
+			return
+		}
+		if br != nil && tagNameNode(br.Parent) == "p" && nextNodeSkippingWhitespace(br.NextSibling) == nil {
+			next := nextElementSibling(br.Parent)
+			if tagNameNode(next) == "ul" || tagNameNode(next) == "ol" {
+				removeFollowingWhitespace(br)
+				removeNode(br)
+			}
+		}
+	})
+	unwrapSingleCellTables(article)
+	fixLazyImages(article)
+	removeUnusedSVGSymbols(article)
+	cleanConditionally(article, "form")
+	cleanConditionally(article, "fieldset")
+	cleanConditionally(article, "ul")
+	cleanConditionally(article, "div")
+	normalizeVideoPlayerContainers(article)
+	normalizeSmartAssetContainers(article)
+	convertTextOnlyDivsToParagraphs(article)
+	normalizeSingleChildContainers(article)
+	unwrapSingleParagraphContainers(article)
+	removeEmptyMediaHeadings(article)
+	restoreStoryContinueLinks(article)
+	article.Find("*").Each(func(_ int, s *goquery.Selection) {
+		classID := strings.ToLower(attr(s, "class") + " " + attr(s, "id"))
+		if attr(s, "role") == "note" {
+			s.Remove()
+			return
+		}
+		if attr(s, "id") == "comments" || attr(s, "id") == "adjacent-posts" || hasAncestorNodeID(s.Get(0), "comments") {
+			cleanPresentationAttributes(s.Get(0))
+			return
+		}
+		text := innerText(s)
+		if strings.Contains(classID, "like-post-wrapper") ||
+			(len([]rune(text)) < 200 && strings.Contains(strings.ToLower(text), "like this:") && strings.Contains(strings.ToLower(text), "loading")) ||
+			loadingWordsRE.MatchString(text) {
+			s.Remove()
+			return
+		}
+		if unlikelyCandidateRE.MatchString(classID) && !okMaybeCandidateRE.MatchString(classID) &&
+			tagNameNode(s.Get(0)) != "a" && !(tagNameNode(s.Get(0)) == "header" && hasAncestorNodeTag(s.Get(0), "article")) &&
+			!hasAncestorNodeTag(s.Get(0), "table") && !hasAncestorNodeTag(s.Get(0), "code") {
+			s.Remove()
+			return
+		}
+		cleanPresentationAttributes(s.Get(0))
+	})
+	cleanPresentationAttributes(article.Get(0))
+	article.Find("p").Each(func(_ int, s *goquery.Selection) {
+		if normalizeSpace(s.Text()) == "" && s.Find("img, picture, video, audio, embed, object, iframe, svg, math").Length() == 0 {
+			s.Remove()
+		}
+	})
+	removeMediaSectionHeadings(article)
+	removeCompatibilityHorizontalRules(article)
+	removeBoundaryHorizontalRules(article.Get(0))
+	simplifyNestedElements(article)
+	normalizeCollectionContainers(article)
+}
+
+func cleanPresentationAttributes(node *xhtml.Node) {
+	if node == nil || node.Type != xhtml.ElementNode {
+		return
+	}
+	inSVG := tagNameNode(node) == "svg" || hasAncestorNodeTag(node, "svg")
+	if hasAncestorNodeTag(node, "svg") {
+		node.Data = strings.ToLower(node.Data)
+	}
+	if inSVG {
+		normalizeInlineSVGAttributeCasing(node)
+	}
+	kept := node.Attr[:0]
+	for _, attr := range node.Attr {
+		key := strings.ToLower(attr.Key)
+		if key == "class" {
+			if className := preservedClassList(attr.Val); className != "" {
+				attr.Val = className
+				kept = append(kept, attr)
+			}
+			continue
+		}
+		if inSVG && key == "style" {
+			kept = append(kept, attr)
+			continue
+		}
+		if presentationalAttribute[key] {
+			continue
+		}
+		if (key == "width" || key == "height") && deprecatedSizeAttributeElement[tagNameNode(node)] {
+			continue
+		}
+		kept = append(kept, attr)
+	}
+	node.Attr = kept
+}
+
+func normalizeInlineSVGAttributeCasing(node *xhtml.Node) {
+	if tagNameNode(node) != "svg" || nodeAttr(node, "version") != "" {
+		return
+	}
+	for i := range node.Attr {
+		if node.Attr[i].Key == "viewBox" {
+			node.Attr[i].Key = "viewbox"
+		}
+	}
+}
+
+func preservedClassList(className string) string {
+	var preserved []string
+	for _, class := range strings.Fields(className) {
+		if class == "caption" || class == "page" {
+			preserved = append(preserved, class)
+		}
+	}
+	return strings.Join(preserved, " ")
+}
+
+func removeLeadingMetadataBlocks(root *goquery.Selection) {
+	for {
+		first := firstElementChild(root.Get(0))
+		if first == nil || tagNameNode(first) != "p" {
+			return
+		}
+		s := selectionForNode(first)
+		if !isLeadingMetadataBlock(s) {
+			return
+		}
+		removeNode(first)
+	}
+}
+
+func removePlainBylineParagraphs(root *goquery.Selection) {
+	removed := false
+	seenBodyText := false
+	root.Find("p").Each(func(_ int, s *goquery.Selection) {
+		if removed || seenBodyText {
+			return
+		}
+		text := normalizeSpace(s.Text())
+		if text == "" {
+			return
+		}
+		if len([]rune(text)) >= 120 || !strings.HasPrefix(text, "By ") {
+			seenBodyText = true
+			return
+		}
+		if monthNameRE.MatchString(text) || leadingDateRE.MatchString(strings.TrimPrefix(text, "By ")) {
+			s.Remove()
+			removed = true
+			return
+		}
+		seenBodyText = true
+	})
+}
+
+func isLeadingMetadataBlock(s *goquery.Selection) bool {
+	text := normalizeSpace(s.Text())
+	if text == "" || len([]rune(text)) > 120 || s.Find("a, img, iframe, video, audio").Length() > 0 {
+		return false
+	}
+	if leadingDateRE.MatchString(text) {
+		return true
+	}
+	lower := strings.ToLower(text)
+	return s.Find("time").Length() > 0 &&
+		(strings.Contains(lower, "mis à jour") || strings.Contains(lower, " par ") || strings.Contains(lower, "le monde"))
+}
+
+func convertTextOnlyDivsToParagraphs(root *goquery.Selection) {
+	root.Find("div").Each(func(_ int, s *goquery.Selection) {
+		node := s.Get(0)
+		if node == nil || node.Parent == nil || strings.HasPrefix(attr(s, "id"), "readability") {
+			return
+		}
+		if attr(s, "id") == "smartassetcontainer" || s.Find("#smartassetcontainer").Length() > 0 {
+			return
+		}
+		if normalizeSpace(s.Text()) == "" || hasChildBlockElement(node) {
+			return
+		}
+		if s.Find("picture, video, audio, iframe, object, embed, svg, math").Length() > 0 {
+			return
+		}
+		node.Data = "p"
+		if hasAncestorNodeTag(node, "figcaption") {
+			removeNodeAttr(node, "data-reactid")
+		}
+	})
+}
+
+func normalizeSingleChildContainers(root *goquery.Selection) {
+	root.Find("div").Each(func(_ int, s *goquery.Selection) {
+		node := s.Get(0)
+		if node == nil || node.Parent == nil || strings.HasPrefix(attr(s, "id"), "readability") {
+			return
+		}
+		child := firstElementChild(node)
+		if child == nil || nextElementSibling(child) != nil || normalizeSpace(s.Text()) == "" {
+			return
+		}
+		switch tagNameNode(child) {
+		case "figcaption":
+			node.Data = "p"
+		default:
+			if isHeadingTag(tagNameNode(child)) {
+				node.Data = "p"
+			}
+		}
+	})
+}
+
+func unwrapSingleParagraphContainers(root *goquery.Selection) {
+	root.Find("div").Each(func(_ int, s *goquery.Selection) {
+		node := s.Get(0)
+		if node == nil || node.Parent == nil || strings.HasPrefix(attr(s, "id"), "readability") {
+			return
+		}
+		if len(node.Attr) > 0 {
+			return
+		}
+		if tagNameNode(node.Parent) == "figure" {
+			return
+		}
+		if !hasSingleElementChild(node, "p") || linkDensity(s) >= 0.25 {
+			return
+		}
+		child := firstElementChild(node)
+		if selectionForNode(child).Find("iframe, video, audio").Length() > 0 {
+			mergeMissingAttributes(child, node)
+		}
+		replaceNode(node, child)
+	})
+}
+
+func removeBoundaryHorizontalRules(root *xhtml.Node) {
+	if root == nil {
+		return
+	}
+	for {
+		first := firstElementChild(root)
+		if tagNameNode(first) != "hr" {
+			break
+		}
+		removeNode(first)
+	}
+	for {
+		last := lastElementChild(root)
+		if tagNameNode(last) != "hr" {
+			break
+		}
+		removeNode(last)
+	}
+}
+
+func replaceJavascriptLinks(root *goquery.Selection) {
+	root.Find("a[href]").Each(func(_ int, s *goquery.Selection) {
+		if !strings.HasPrefix(strings.ToLower(strings.TrimSpace(attr(s, "href"))), "javascript:") {
+			return
+		}
+		link := s.Get(0)
+		if link == nil || link.Parent == nil {
+			return
+		}
+		if link.FirstChild != nil && link.FirstChild == link.LastChild && link.FirstChild.Type == xhtml.TextNode {
+			replaceNode(link, &xhtml.Node{Type: xhtml.TextNode, Data: link.FirstChild.Data})
+			return
+		}
+		span := &xhtml.Node{Type: xhtml.ElementNode, Data: "span"}
+		for link.FirstChild != nil {
+			child := link.FirstChild
+			link.RemoveChild(child)
+			span.AppendChild(child)
+		}
+		replaceNode(link, span)
+	})
+}
+
+func removeFollowingWhitespace(node *xhtml.Node) {
+	for next := node.NextSibling; next != nil && isWhitespaceNode(next); {
+		current := next
+		next = next.NextSibling
+		removeNode(current)
+	}
+}
