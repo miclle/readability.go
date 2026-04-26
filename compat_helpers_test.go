@@ -506,6 +506,41 @@ func TestCleanArticleCandidateKeepsDataTable(t *testing.T) {
 	}
 }
 
+func TestCleanConditionallyCleansInsideLayoutTables(t *testing.T) {
+	doc := mustTestDocument(t, `<article>
+		<table><tr><td>
+			<p>This article paragraph contains enough text to keep the article meaningful after cleanup.</p>
+			<table><tr><td><a href="/promo">Promo link</a></td><td><a href="/more">More links</a></td></tr></table>
+		</td></tr></table>
+	</article>`)
+	article := doc.Find("article").First()
+
+	cleanArticleCandidate(article)
+
+	if strings.Contains(article.Text(), "Promo link") {
+		html, _ := article.Html()
+		t.Fatalf("layout-table noise was kept in %s", html)
+	}
+}
+
+func TestCleanConditionallyKeepsContentInsideDataTables(t *testing.T) {
+	doc := mustTestDocument(t, `<article>
+		<table>
+			<caption>Quarterly results</caption>
+			<tr><td><div><a href="/q1">Q1 revenue was ten dollars</a></div></td><td>$10</td></tr>
+			<tr><td><div><a href="/q2">Q2 revenue was twelve dollars</a></div></td><td>$12</td></tr>
+		</table>
+	</article>`)
+	article := doc.Find("article").First()
+
+	cleanArticleCandidate(article)
+
+	if !strings.Contains(article.Text(), "Q1 revenue was ten dollars") {
+		html, _ := article.Html()
+		t.Fatalf("data-table content was removed from %s", html)
+	}
+}
+
 func TestInlineSVGAttributeCasingAndImageSelection(t *testing.T) {
 	doc := mustTestDocument(t, `<figure><span> <img src="photo.jpg"> </span></figure><svg viewBox="0 0 1 1"></svg>`)
 

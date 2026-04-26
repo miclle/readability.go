@@ -22,7 +22,7 @@ func cleanConditionally(root *goquery.Selection, tag string, options conditionOp
 	})
 	for i := len(nodes) - 1; i >= 0; i-- {
 		node := nodes[i]
-		if node.Parent == nil || hasAncestorNodeTag(node, "code") || hasAncestorNodeTag(node, "table") {
+		if node.Parent == nil || hasAncestorNodeTag(node, "code") || hasAncestorDataTable(node) {
 			continue
 		}
 		s := selectionForNode(node)
@@ -51,9 +51,6 @@ func shouldRemoveConditionally(s *goquery.Selection, tag string, options conditi
 		return false
 	}
 	if strings.Contains(classID, "thumbcaption") && strings.Contains(strings.ToLower(text), "is one of") && s.Find("sup").Length() > 0 {
-		return false
-	}
-	if isCollectionCardSummary(s) {
 		return false
 	}
 	if containsCollectionHighlights(s) {
@@ -150,6 +147,15 @@ func containsDataTable(s *goquery.Selection) bool {
 		return true
 	})
 	return found
+}
+
+func hasAncestorDataTable(node *xhtml.Node) bool {
+	for parent := node.Parent; parent != nil; parent = parent.Parent {
+		if tagNameNode(parent) == "table" && isDataTable(selectionForNode(parent)) {
+			return true
+		}
+	}
+	return false
 }
 
 func isDataTable(s *goquery.Selection) bool {

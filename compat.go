@@ -384,13 +384,3 @@ func isLoadingPlaceholderText(text string) bool {
 	}
 	return false
 }
-
-func isCollectionCardSummary(s *goquery.Selection) bool {
-	node := s.Get(0)
-	return tagNameNode(node) == "div" &&
-		tagNameNode(node.Parent) == "article" &&
-		hasAncestorNodeID(node, "site-content") &&
-		!hasAncestorNodeMatching(node, isCollectionHighlightsNode) &&
-		s.Find("h2 a, h3 a").Length() > 0 &&
-		s.Find("p").Length() > 0
-}

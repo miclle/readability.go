@@ -25,6 +25,29 @@ fixtures into production logic.
   and full Mozilla compatibility drift report.
 - Run `make vet` for static checks.
 
+## Current Upstream Drift
+
+`tools/compare-upstream.mjs` compares this implementation with the current
+Mozilla Readability checkout. Some differences are intentionally left open when
+chasing current upstream would either break pinned fixtures or require
+site-specific behavior:
+
+- `firefox-nightly-blog` and `medicalnewstoday`: current upstream selects
+  newsletter or print-message blocks, while the pinned fixtures and this port
+  keep the article body.
+- `hukumusume`: current upstream now returns a shorter legacy table extraction;
+  the pinned fixture preserves the wider legacy table content.
+- `lifehacker-post-comment-load` and `lifehacker-working`: remaining drift is
+  `textContent` whitespace around block boundaries. A global text-content
+  rewrite regresses many other fixtures, so this should wait for a parser-level
+  whitespace model rather than a fixture-specific shortcut.
+- `wikipedia`: current upstream serializes the first infobox without the
+  parser-inserted `<tbody>`. Many pinned fixtures contain explicit `<tbody>`
+  markup, so this needs an implicit-vs-explicit table-section strategy before
+  changing serialization.
+- `cnn`: current upstream keeps a small SmartAsset attribution block that this
+  port currently removes during cleanup.
+
 ## Implementation Layout
 
 The public entry point lives in `article.go`. The parser implementation is
