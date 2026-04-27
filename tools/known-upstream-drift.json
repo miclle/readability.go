@@ -1,7 +1,7 @@
 {
   "cnn": {
     "fields": ["content", "textContent"],
-    "reason": "current upstream keeps a small SmartAsset attribution block that this port removes with the embed"
+    "reason": "current upstream keeps the outer smartassetcontainer (only the 'Powered by SmartAsset.com' attribution paragraph) while stripping the nested iframe/script payload. This port's embed cleanup removes the whole subtree. Replicating upstream would require a site-specific 'attribution-bearing embed wrapper' heuristic that risks regressing other widget/embed fixtures (calculators, social embeds, chart containers); reviewed and left as drift."
   },
   "firefox-nightly-blog": {
     "fields": ["byline", "content", "textContent"],

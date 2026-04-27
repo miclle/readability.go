@@ -55,8 +55,13 @@ correct for this port or would break pinned fixtures.
   parser-inserted `<tbody>`. Many pinned fixtures contain explicit `<tbody>`
   markup, so this needs an implicit-vs-explicit table-section strategy before
   changing serialization.
-- `cnn`: current upstream keeps a small SmartAsset attribution block that this
-  port currently removes during cleanup.
+- `cnn`: current upstream keeps the outer `smartassetcontainer` (with only the
+  "Powered by SmartAsset.com" attribution paragraph) while stripping the nested
+  iframe/script payload. This port's embed cleanup removes the whole subtree.
+  Reviewed under a 30-minute time box: replicating upstream would require a
+  site-specific "attribution-bearing embed wrapper" heuristic that risks
+  regressing other widget/embed fixtures (calculators, social embeds, chart
+  containers), so the drift is intentionally left in place.
 
 ## Project Position
 
