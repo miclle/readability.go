@@ -35,7 +35,7 @@ site-specific behavior. The machine-readable allowlist lives in
 allow only these documented differences while still failing on new drift:
 
 ```sh
-READABILITY_GO_JSON=/tmp/readability-json node tools/compare-upstream.mjs --all --char-threshold 1 --known-drift
+node tools/compare-upstream.mjs --all --char-threshold 1 --known-drift
 ```
 
 Only add or change known drift entries after confirming the difference is not a
@@ -100,6 +100,23 @@ split by responsibility:
 - `dom.go` and `url.go` provide DOM and URL helpers used across the parser.
 
 ## Usage
+
+### CLI
+
+The `cmd/readability` command extracts the readable article from a URL, an
+HTML file, or stdin:
+
+```sh
+go run ./cmd/readability https://example.com/post
+go run ./cmd/readability article.html --url https://example.com/post --format json
+cat article.html | go run ./cmd/readability - --url https://example.com/post --format md --metadata
+```
+
+Supported output formats are `text` (default), `html`, `json`, and
+`markdown` / `md`. Markdown output targets GitHub Flavored Markdown and
+`--metadata` adds YAML front matter for Markdown output.
+
+### Library
 
 ```go
 package main

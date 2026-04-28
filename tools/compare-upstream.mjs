@@ -108,10 +108,12 @@ function allFixtures() {
 function parseGo(sourcePath, url) {
   const stdout = execFileSync(goJSON, [
 	 ...goJSONArgs(),
-	 "-url",
+	 "--url",
 	 url,
-	 "-char-threshold",
+	 "--char-threshold",
 	 String(charThreshold),
+	 "--format",
+	 "json",
 	 sourcePath,
   ], {
     cwd: root,
@@ -133,7 +135,7 @@ function parseGo(sourcePath, url) {
 
 function goJSONArgs() {
   if (goJSON === "go") {
-    return ["run", "./internal/tools/readability-json"];
+    return ["run", "./cmd/readability"];
   }
   return [];
 }
