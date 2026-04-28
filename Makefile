@@ -1,4 +1,4 @@
-.PHONY: all test vet compat-test fuzz bench bench-baseline bench-compare
+.PHONY: all test vet compat-test fuzz fuzz-from-reader fuzz-readerable bench bench-baseline bench-compare
 
 all: vet test
 
@@ -19,6 +19,15 @@ FUZZTIME ?= 30s
 
 fuzz:
 	go test -run=^$$ -fuzz=FuzzFromReader -fuzztime=$(FUZZTIME) .
+	go test -run=^$$ -fuzz=FuzzIsProbablyReaderable -fuzztime=$(FUZZTIME) .
+
+# Single-target fuzz runs for long local sessions. The combined `fuzz`
+# target serializes the two harnesses, which wastes wall-clock when you
+# only care about one of them. Run as e.g. `make fuzz-from-reader FUZZTIME=10m`.
+fuzz-from-reader:
+	go test -run=^$$ -fuzz=FuzzFromReader -fuzztime=$(FUZZTIME) .
+
+fuzz-readerable:
 	go test -run=^$$ -fuzz=FuzzIsProbablyReaderable -fuzztime=$(FUZZTIME) .
 
 # Benchmark targets.
