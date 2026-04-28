@@ -188,6 +188,14 @@ only. CI uses a dynamic baseline: the `bench-compare` job records both
 report as a build artifact. This neutralizes the CPU / scheduler variance
 that would otherwise make a hardware-pinned baseline unreliable in CI.
 
+A regression gate (`tools/bench-regression-gate.sh`) parses the benchstat
+CSV output and fails the job when any benchmark regresses by ≥ 10% AND
+benchstat marks the change as statistically significant (p < 0.05).
+Improvements and noise (`~`) are ignored. The threshold is loose on
+purpose — GitHub-hosted runners are noisy and tighter limits produce
+false positives more often than they catch real regressions; tune it in
+`.github/workflows/ci.yml` if your fork has access to dedicated runners.
+
 Direct `go test` invocation is still supported for ad-hoc runs:
 
 ```sh

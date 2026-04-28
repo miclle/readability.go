@@ -130,6 +130,20 @@ jobs:
         run: |
           $(go env GOPATH)/bin/benchstat /tmp/bench-main.txt /tmp/bench-pr.txt \
             | tee /tmp/bench-report.txt
+          $(go env GOPATH)/bin/benchstat -format csv /tmp/bench-main.txt /tmp/bench-pr.txt \
+            > /tmp/bench-report.csv 2>/dev/null
+
+      # Fail the job if any benchmark regressed beyond the threshold and
+      # benchstat marked the change as statistically significant. The
+      # full text report is still uploaded as an artifact below so
+      # reviewers can investigate. Threshold lives here (not in the
+      # script) so it can be tweaked from the workflow without touching
+      # tools/. 10% is loose on purpose — CI runners are noisy and
+      # benchstat already filters out non-significant deltas, so smaller
+      # thresholds produce false positives more often than they catch
+      # real regressions.
+      - name: Enforce regression threshold
+        run: tools/bench-regression-gate.sh /tmp/bench-report.csv 10
 
       - name: Upload bench report
         if: always()
