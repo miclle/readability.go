@@ -122,6 +122,9 @@ func relaxedArticleSelection(doc *goquery.Document, title string, cfg parserConf
 	return &goquery.Selection{}
 }
 
+// cloneDocument returns a deep copy of doc whose tree is independent
+// from the original. The fallback ladder mutates clones so destructive
+// cleanup in one rung cannot leak into the next.
 func cloneDocument(doc *goquery.Document) *goquery.Document {
 	if doc == nil {
 		return &goquery.Document{}
@@ -246,6 +249,12 @@ func unwrapNoscriptImages(doc *goquery.Document) {
 	})
 }
 
+// fallbackArticleSelection walks a curated list of CMS-conventional
+// selectors looking for a block long enough (>= 100 chars) to be the
+// article. Order matters: schema.org articleBody markers come first
+// because they are explicit author intent; generic class names like
+// `.article-body` / `.entry-content` follow; `<article>` is last
+// because many sites wrap their entire layout in it.
 func fallbackArticleSelection(doc *goquery.Document) *goquery.Selection {
 	for _, selector := range []string{
 		`[itemprop="articleBody"]`,
@@ -269,6 +278,10 @@ func fallbackArticleSelection(doc *goquery.Document) *goquery.Selection {
 	return &goquery.Selection{}
 }
 
+// bestSelectionByTextLength picks the longest member of a selection
+// that clears the 100-char minimum. The threshold filters out boilerplate
+// matches (an empty `<article>` shell, a stub articleBody marker on a
+// listing page) so callers don't have to re-check length themselves.
 func bestSelectionByTextLength(nodes *goquery.Selection) *goquery.Selection {
 	var best *goquery.Selection
 	bestLength := 0
@@ -285,12 +298,21 @@ func bestSelectionByTextLength(nodes *goquery.Selection) *goquery.Selection {
 	return best
 }
 
+// explicitArticleDescription matches the `components-description` /
+// `article-description` class patterns some CMS templates use as the
+// canonical article container. These blocks already are the article
+// body and tend to lose content under standard scoring, so the entry
+// path picks them up before scoring runs.
 func explicitArticleDescription(doc *goquery.Document) *goquery.Selection {
 	return doc.Find(`[class*="components-description"], [class*="article-description"]`).FilterFunction(func(_ int, s *goquery.Selection) bool {
 		return utf8.RuneCountInString(innerText(s)) >= 100
 	}).First()
 }
 
+// isPrintMessageSelection detects the "this content is for print only"
+// stub some sites swap in for the article body. When the scorer settles
+// on one of these, the entry path retries with an articleBody-marked
+// fallback so we don't return print-instructions as the article text.
 func isPrintMessageSelection(s *goquery.Selection) bool {
 	if s.Length() == 0 {
 		return false
@@ -300,6 +322,12 @@ func isPrintMessageSelection(s *goquery.Selection) bool {
 		s.Find("#print_message, .print-message").Length() > 0
 }
 
+// isFormContentSelection detects newsletter-signup / contact-form
+// footers that score well because they contain prose-shaped privacy
+// boilerplate. The class/id check covers explicit form wrappers; the
+// text check ("your e-mail address" + "privacy policy") catches
+// templates that don't class-mark the block but are still clearly the
+// signup form, not the article.
 func isFormContentSelection(s *goquery.Selection) bool {
 	if s.Length() == 0 {
 		return false
@@ -310,6 +338,12 @@ func isFormContentSelection(s *goquery.Selection) bool {
 		(strings.Contains(text, "your e-mail address") && strings.Contains(text, "privacy policy"))
 }
 
+// wrapArticleSelection wraps the chosen article subtree in a
+// `<div id="readability-content">` so downstream consumers see a
+// stable, single-rooted container regardless of which path produced
+// the candidate (legacy table, explicit articleBody, scoring, or
+// fallback). Direction is copied from the candidate when known so RTL
+// content survives the rewrap.
 func wrapArticleSelection(s *goquery.Selection) *goquery.Selection {
 	wrapper := &xhtml.Node{
 		Type: xhtml.ElementNode,
