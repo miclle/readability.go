@@ -1,5 +1,7 @@
 # readability.go
 
+[中文文档](README_zh.md)
+
 Go implementation of Mozilla Readability, aiming for fixture-level behavior
 compatibility with [`mozilla/readability`](https://github.com/mozilla/readability).
 
@@ -98,6 +100,83 @@ split by responsibility:
   is intentionally kept separate from the generic parser flow.
 - `metadata.go`, `excerpt.go`, and `byline.go` extract document metadata.
 - `dom.go` and `url.go` provide DOM and URL helpers used across the parser.
+
+### Architecture
+
+```mermaid
+flowchart TD
+    User["Caller / CLI"] --> API["Public API<br/>FromReader / IsProbablyReaderable"]
+
+    API --> Full["Full extraction<br/>FromReader"]
+    API --> Probe["Fast pre-check<br/>IsProbablyReaderable"]
+
+    Probe --> Readerable["readerable.go<br/>candidate scan<br/>visibility filters<br/>text-length scoring"]
+
+    Full --> Parse["Parse HTML with goquery<br/>MaxElemsToParse guard"]
+    Parse --> Meta["metadata.go<br/>JSON-LD / meta / title<br/>site name / published time"]
+    Parse --> Byline["byline.go<br/>capture source byline<br/>before cleanup"]
+    Parse --> Extract["extract.go<br/>article extraction coordinator"]
+
+    Extract --> PreClean["Pre-cleanup<br/>scripts/styles/noscript<br/>font to span<br/>br normalization<br/>hidden node removal"]
+    PreClean --> URL["url.go<br/>resolve relative URLs"]
+    PreClean --> Legacy["legacy.go<br/>legacy table layout path"]
+    PreClean --> Explicit["explicit articleBody<br/>description block path"]
+    PreClean --> Score["score.go<br/>Readability candidate scoring"]
+
+    Score --> Prepare["prepareArticleScoring<br/>remove unlikely nodes<br/>promote div to p<br/>deduplicate title headers"]
+    Prepare --> Candidate["Candidate scoring<br/>paragraph text + commas + length<br/>propagate score to ancestors"]
+    Candidate --> Refine["Candidate refinement<br/>shared ancestor promotion<br/>parent promotion<br/>sibling merge"]
+
+    Legacy --> Clean["clean.go<br/>article cleanup pipeline"]
+    Explicit --> Clean
+    Refine --> Clean
+
+    Clean --> Condition["condition.go<br/>conditional cleanup<br/>link density / media / table checks"]
+    Clean --> Normalize["normalize.go<br/>structure normalization<br/>br / table / nested elements"]
+    Clean --> Media["media.go<br/>lazy images<br/>embed/video/audio filtering"]
+    Clean --> Compat["compat.go<br/>fixture-proven compatibility fixes"]
+
+    Condition --> ArticleTree["Final article DOM<br/>readability-content"]
+    Normalize --> ArticleTree
+    Media --> ArticleTree
+    Compat --> ArticleTree
+
+    ArticleTree --> Serialize["dom.go<br/>HTML serialization<br/>entity normalization"]
+    Meta --> Result["Article result"]
+    Byline --> Result
+    Serialize --> Result
+
+    Result --> Fields["Title / Content / TextContent<br/>Length / Excerpt / Byline<br/>Dir / SiteName / Lang / PublishedTime"]
+
+    CLI["cmd/readability"] --> API
+    CLI --> Render["Output formats<br/>text / html / json / markdown"]
+```
+
+```mermaid
+sequenceDiagram
+    participant C as Caller
+    participant A as article.go
+    participant M as metadata.go
+    participant E as extract.go
+    participant S as score.go
+    participant CL as clean.go
+    participant R as Article
+
+    C->>A: FromReader(html, pageURL, options)
+    A->>A: Read input and parse goquery Document
+    A->>M: Extract metadata, title, excerpt, site name
+    A->>A: Capture source byline from pristine DOM
+    A->>E: extractArticleContent(doc, pageURL, title, cfg)
+    E->>E: Pre-clean, resolve URLs, clone fallbackDoc
+    E->>S: Run standard candidate scoring
+    S-->>E: readability-content candidate DOM
+    E->>CL: Clean candidate article
+    CL-->>E: Clean article DOM
+    E-->>A: content selection
+    A->>A: Build TextContent, Excerpt, Dir, Lang
+    A-->>R: Article
+    R-->>C: Return content and metadata
+```
 
 ## Usage
 
